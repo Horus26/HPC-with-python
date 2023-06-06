@@ -198,6 +198,9 @@ if __name__ == "__main__":
     k = 1
     use_density_perturbation = False
     plot_wave = True
-    density_shear_wave_decay(grid_size_x, grid_size_y, omega, timesteps, rho0, a0, k, plot=plot_wave)
-    # velocity_shear_wave_decay(grid_size_x, grid_size_y, omega, timesteps, rho0, a0, k, plot=plot_wave)
+    # density_shear_wave_decay(grid_size_x, grid_size_y, omega, timesteps, rho0, a0, k, plot=plot_wave)
+    # analytical_viscosity, simulated_viscosity =  velocity_shear_wave_decay(grid_size_x, grid_size_y, omega, timesteps, rho0, a0, k, plot=plot_wave)
+    # print("Analytical viscosity: {}".format(analytical_viscosity))
+    # print("Simulated viscosity: {}".format(simulated_viscosity))
+
     # viscosity_over_omega(grid_size_x, grid_size_y, timesteps, rho0, a0, k, use_density_perturbation=use_density_perturbation)
