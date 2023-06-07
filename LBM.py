@@ -217,6 +217,9 @@ class LBM:
         """
         Boundary handling after streaming step.
         """
+        self.update_density_field()
+
+
         # Remember that grid has origin in the bottom left corner and numpy origin is in the top left corner.
 
         # apply bounce back boundary condition
@@ -254,25 +257,27 @@ class LBM:
             self.f_iyx[8, :, -1] = 0
         
         
-        self.update_density_field()
         # apply moving wall boundary condition
         # positive velocity direction is to right and up 
         if self.boundary_conditions["top"] == "moving_wall":
-            self.f_iyx[7, 1, :] -= 6 * self.lattice_weights_i[5] * self.boundary_velocities["top"] * self.density_field_yx[1, :]
-            # += because the direction introduces a minus sign and this cancles out the minus sign of the original formula
-            self.f_iyx[8, 1, :] += 6 * self.lattice_weights_i[6] * self.boundary_velocities["top"] * self.density_field_yx[1, :]
+            density_top = self.f_iyx[0, 1] + self.f_iyx[1, 1] + self.f_iyx[3, 1] + 2 * (self.f_iyx[2, 1] + self.f_iyx[6, 1] + self.f_iyx[5, 1])
+            self.f_iyx[7, 1, :] += 0.5 * (self.f_iyx[1, 1, :] - self.f_iyx[3, 1, :]) - 0.5 * density_top * self.boundary_velocities["top"]
+            self.f_iyx[8, 1, :] += 0.5 * (self.f_iyx[3, 1, :] - self.f_iyx[1, 1, :]) + 0.5 * density_top * self.boundary_velocities["top"]
 
         if self.boundary_conditions["bottom"] == "moving_wall":
-            self.f_iyx[5, -2, :] += 6 * self.lattice_weights_i[7] * self.boundary_velocities["bottom"] * self.density_field_yx[-2, :]
-            self.f_iyx[6, -2, :] -= 6 * self.lattice_weights_i[8] * self.boundary_velocities["bottom"] * self.density_field_yx[-2, :]
+            density_bottom = self.f_iyx[0, -2] + self.f_iyx[1, -2] + self.f_iyx[3, -2] + 2 * (self.f_iyx[4, -2] + self.f_iyx[7, -2] + self.f_iyx[8, -2])
+            self.f_iyx[5, -2, :] += 0.5 * (self.f_iyx[3, -2, :] - self.f_iyx[1, -2, :]) + 0.5 * density_bottom * self.boundary_velocities["bottom"]
+            self.f_iyx[6, -2, :] += 0.5 * (self.f_iyx[1, -2, :] - self.f_iyx[3, -2, :]) - 0.5 * density_bottom * self.boundary_velocities["bottom"]
 
         if self.boundary_conditions["left"] == "moving_wall":
-            self.f_iyx[8, :, 1] -= 6 * self.lattice_weights_i[6] * self.boundary_velocities["left"] * self.density_field_yx[:, 1]
-            self.f_iyx[5, :, 1] += 6 * self.lattice_weights_i[7] * self.boundary_velocities["left"] * self.density_field_yx[:, 1]
+            density_left = self.f_iyx[0, :, 1] + self.f_iyx[2, :, 1] + self.f_iyx[4, :, 1] + 2 * (self.f_iyx[3, :, 1] + self.f_iyx[7, :, 1] + self.f_iyx[6, :, 1])
+            self.f_iyx[8, :, 1] += 0.5 * (self.f_iyx[2, :, 1] - self.f_iyx[4, :, 1]) - 0.5 * density_left * self.boundary_velocities["left"]
+            self.f_iyx[5, :, 1] += 0.5 * (self.f_iyx[4, :, 1] - self.f_iyx[2, :, 1]) + 0.5 * density_left * self.boundary_velocities["left"]
 
         if self.boundary_conditions["right"] == "moving_wall":
-            self.f_iyx[7, :, -2] -= 6 * self.lattice_weights_i[5] * self.boundary_velocities["right"] * self.density_field_yx[:, -2]
-            self.f_iyx[6, :, -2] += 6 * self.lattice_weights_i[8] * self.boundary_velocities["right"] * self.density_field_yx[:, -2]
+            density_right = self.f_iyx[0, :, -2] + self.f_iyx[2, :, -2] + self.f_iyx[4, :, -2] + 2 * (self.f_iyx[1, :, -2] + self.f_iyx[5, :, -2] + self.f_iyx[8, :, -2])
+            self.f_iyx[3, :, -2] += 0.5 * (self.f_iyx[4, :, -2] - self.f_iyx[2, :, -2]) + 0.5 * density_right * self.boundary_velocities["right"]
+            self.f_iyx[7, :, -2] += 0.5 * (self.f_iyx[2, :, -2] - self.f_iyx[4, :, -2]) - 0.5 * density_right * self.boundary_velocities["right"]
 
     def streaming(self):
         """
