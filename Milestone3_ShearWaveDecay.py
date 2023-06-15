@@ -52,7 +52,8 @@ def density_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : float
         simulated_density_field_tyx.append(lbm.density_field_yx)
         analytical_density_field_tx.append(calc_analytical_solution(a0, analytical_viscositity, L, timestep=i+1, offset=rho0))
 
-        if plot and i in timesteps_for_plotting:
+        # if plot and i in timesteps_for_plotting:
+        if plot and i % 100 == 0:
             ax1.plot(np.arange(L), lbm.density_field_yx[0, :], label="t={}".format(i))
     
     if plot:
@@ -61,7 +62,7 @@ def density_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : float
         # ax1.set_title("Density at x = {}".format(int(L/(4*period_multiplier))))
         ax1.legend()
         fig_density_over_time.tight_layout()
-        fig_density_over_time.savefig("density_over_time_{}.png".format(timesteps))
+        fig_density_over_time.savefig("ShearWaveDecayResults/density_over_time_{}.png".format(timesteps))
         plt.show()
 
     # find maxima of simulated solution over time
@@ -120,7 +121,8 @@ def velocity_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : floa
         simulated_velocity_field_tyx.append(lbm.velocity_field_Cyx[0, :, :])
         analytical_velocity_field_ty.append(calc_analytical_solution(a0, analytical_viscositity, L, timestep=i+1))
 
-        if plot and i in timesteps_for_plotting:
+        # if plot and i in timesteps_for_plotting:
+        if plot and i % 100 == 0:
             ax1.plot(np.arange(L), lbm.velocity_field_Cyx[0, :, 0], label="t={}".format(i))
     
     if plot:
@@ -129,13 +131,19 @@ def velocity_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : floa
         # ax1.set_title("Velocity at y = {}".format(int(L/(4*period_multiplier))))
         ax1.legend()
         fig_velocity_over_time.tight_layout()
-        fig_velocity_over_time.savefig("velocity_over_time_{}.png".format(timesteps))
-        plt.show()
+        fig_velocity_over_time.savefig("ShearWaveDecayResults/velocity_over_time_{}.png".format(timesteps))
+        # plt.show()
 
     # find maxima of simulated solution over time
     simulated_solution_t = np.amax(np.abs(simulated_velocity_field_tyx), axis=(1,2))
-    # calculate viscosity from maxima
     simulated_viscosity = calc_kinematic_viscosity(np.arange(timesteps + 1), simulated_solution_t, period)
+    print("Fit viscosity: {}".format(simulated_viscosity))
+
+    # 3 u graphs (also for density)
+    # 1. decay of amplitude, also for different omega
+    # for large viscosity (small omega) the amplitude decays faster
+    # 2. viscosity over omega, analytical (like 1/omega) and simulated (for small omega it does not reproduce the analytical result (knick in the graph))
+    # 3. u_x over y: decay of wave at different timesteps
 
     # print("Analytical viscosity: {}".format(analytical_viscositity))
     # print("Simulated viscosity: {}".format(simulated_viscosity))
@@ -146,7 +154,7 @@ def velocity_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : floa
         plot_decaying_wave(analytical_velocity_t, simulated_velocity_t, "Velocity", "Velocity at {} = {}".format("y", position))
     return analytical_viscositity, simulated_viscosity
 
-def viscosity_over_omega(grid_size_x, grid_size_y, timesteps, rho0, a0, k, use_density_perturbation=True):
+def viscosity_over_omega(grid_size_x, grid_size_y, timesteps, rho0, a0, k, use_density_perturbation=False):
     omega_values = np.arange(0.1, 2, 0.1)
     analytical_viscosity_values = []
     simulated_viscosity_values = []
@@ -168,8 +176,8 @@ def viscosity_over_omega(grid_size_x, grid_size_y, timesteps, rho0, a0, k, use_d
     plt.xlabel("Omega")
     plt.ylabel("Viscosity")
     plt.legend()
-    plt.savefig("viscosity_over_omega_{}.png".format("density" if use_density_perturbation else "velocity"))
-    plt.show()
+    plt.savefig("ShearWaveDecayResults/viscosity_over_omega_{}.png".format("density" if use_density_perturbation else "velocity"))
+    # plt.show()
 
 def plot_decaying_wave(analytical_data_values_t, simulated_data_values_t, value_type, title):
     # plot the data values over time
@@ -182,16 +190,16 @@ def plot_decaying_wave(analytical_data_values_t, simulated_data_values_t, value_
     ax1.set_title(title)
     ax1.legend()
     fig.tight_layout()
-    fig.savefig(title + ".png")
-    plt.show()
+    fig.savefig("ShearWaveDecayResults/" + title + ".png")
+    # plt.show()
 
 
 if __name__ == "__main__":
     # Simulation parameters
-    grid_size_x = 150
-    grid_size_y = 100
+    grid_size_x = 15
+    grid_size_y = 10
     epsilon=0.01
-    timesteps = 1000
+    timesteps = 10000
     rho0 = 1.0
     omega = 0.3
     a0 = epsilon
@@ -203,4 +211,4 @@ if __name__ == "__main__":
     # print("Analytical viscosity: {}".format(analytical_viscosity))
     # print("Simulated viscosity: {}".format(simulated_viscosity))
 
-    # viscosity_over_omega(grid_size_x, grid_size_y, timesteps, rho0, a0, k, use_density_perturbation=use_density_perturbation)
+    viscosity_over_omega(grid_size_x, grid_size_y, timesteps, rho0, a0, k, use_density_perturbation=use_density_perturbation)

@@ -137,3 +137,6 @@ def couette_flow():
     plt.show()
 if __name__ == "__main__":
     couette_flow()
+
+
+# plot at L_x / 2 the u_x velocity over time --> linear profile
