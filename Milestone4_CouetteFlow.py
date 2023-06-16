@@ -3,16 +3,26 @@ import matplotlib.pyplot as plt
 import matplotlib
 from LBM import LBM
 
-def couette_flow():
+def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps : int):
     """
     Simulate Couette flow.
+
+    Parameters
+    ----------
+    grid_size_x : int
+        The number of grid points in the x direction.
+    grid_size_y : int
+        The number of grid points in the y direction.
+    omega : float
+        The relaxation parameter.
+    timesteps : int
+        The number of timesteps to simulate.
+
+    Returns
+    -------
+    None.
     """
     
-    # initialize LBM
-    grid_size_x = 200
-    grid_size_y = 100
-    omega = 0.6
-
     top_boundary_velocity = 0.1
     boundary_conditions = {"bottom": "bounce_back", "top": "moving_wall", "left": "periodic", "right": "periodic"}
     # boundary_conditions = {"bottom": "moving_wall", "top": "moving_wall", "left": "moving_wall", "right": "moving_wall"}
@@ -21,10 +31,10 @@ def couette_flow():
     
     initial_velocity_field_Cyx = None
 
+    # initialize LBM
     lbm = LBM(grid_size_x, grid_size_y, omega, inital_velocity_field_Cyx=initial_velocity_field_Cyx, boundary_conditions=boundary_conditions, boundary_velocities=boundary_velocities)
 
     # simulate Couette flow
-    timesteps = 5000
     simulated_velocity_field_tCyx = []
     simulated_velocity_field_tCyx.append(lbm.velocity_field_Cyx)
     print("Simulating Couette flow...")
@@ -136,7 +146,12 @@ def couette_flow():
 
     plt.show()
 if __name__ == "__main__":
-    couette_flow()
+
+    grid_size_x = 200
+    grid_size_y = 100
+    omega = 0.6
+    timestep = 10000
+    couette_flow(grid_size_x, grid_size_y, omega, timestep)
 
 
 # plot at L_x / 2 the u_x velocity over time --> linear profile
