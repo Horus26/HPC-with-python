@@ -34,7 +34,8 @@ class LBM:
                  inital_density_field_yx : np.ndarray = None,
                  inital_velocity_field_Cyx : np.ndarray = None,
                  boundary_conditions : dict = None,
-                 boundary_velocities : dict = None
+                 boundary_velocities : dict = None,
+                 boundary_pressure : dict = None
                  ) -> None:
         """
         Initialize the LBM simulation.
@@ -59,9 +60,12 @@ class LBM:
             Boundary velocities. The default is None. If not defined, the boundary velocities are set to zero.
 
         """
+
+        self.c_s_squared = 1/3
         self.width = width
         self.height = height
         self.boundary_conditions = boundary_conditions
+        self.boundary_pressure = boundary_pressure
         self.valid_boundary_conditions = ["periodic", "bounce_back", "moving_wall"]
         self.boundary_velocities = boundary_velocities
         if self.boundary_velocities is None:
@@ -91,14 +95,31 @@ class LBM:
             if self.boundary_conditions["left"] != "periodic" and self.boundary_conditions["right"] == "periodic":
                 raise ValueError("Right boundary condition is periodic but left boundary condition is not. This is not possible.")
 
-            for key, value in  self.boundary_conditions.items():
-                if value not in self.valid_boundary_conditions:
-                    raise ValueError("Boundary condition is not valid. Given value: {}, expected: periodic, bounce_back or moving_wall".format(value))
+            # check if boundary pressure is given correctly
+            if self.boundary_pressure is not None:
+                if (self.boundary_pressure["bottom"] is None) != (self.boundary_pressure["top"] is None):
+                    raise ValueError("Bottom and top boundary pressure are different types. This is not possible.")
+                if (self.boundary_pressure["left"] is None) != (self.boundary_pressure["right"] is None):
+                    raise ValueError("Left and right boundary pressure are different types. This is not possible.")
+
+            # # enlarge the grid depending on the boundary conditions
+            # for key, value in  self.boundary_conditions.items():
+            #     if value not in self.valid_boundary_conditions:
+            #         raise ValueError("Boundary condition is not valid. Given value: {}, expected: periodic, bounce_back or moving_wall".format(value))
                 
-                if value != "periodic" and (key == "bottom" or key == "top"):
-                    self.height += 1
-                if value != "periodic" and (key == "left" or key == "right"):
-                    self.width += 1
+            #     # also change height if periodic and pressure boundary conditions are given
+            #     if (value != "periodic" or ((key=="bottom" or key == "top") and self.boundary_pressure is not None and self.boundary_pressure[key] is not None)) and (key == "bottom" or key == "top"):
+            #         self.height += 1
+                
+            #     # also change width if periodic and pressure boundary conditions are given
+            #     if (value != "periodic" or ((key=="left" or key == "right") and self.boundary_pressure is not None and self.boundary_pressure[key] is not None)) and (key == "left" or key == "right"):
+            #         self.width += 1
+
+        # always enlarge the grid
+        self.height += 2
+        self.width += 2
+
+
 
 
         self.omega = omega
@@ -139,7 +160,7 @@ class LBM:
              ])
 
 
-        # Initialize the density and velocity fields.
+        # Initialize the density and velocity fields. Width and height are used here on purpose instead of self.width and self.height because those are larger for handling boundary conditions.
         if self.density_field_yx is None:
             self.density_field_yx = np.ones((height, width))
         # else check if dimension of density field is correct
@@ -152,30 +173,27 @@ class LBM:
         elif self.velocity_field_Cyx.shape != (2, height, width):
             raise ValueError("Dimension of velocity field is not correct. Given shape: {}, expected: {}".format(self.velocity_field_Cyx.shape, (2, height, width)))
 
-        # update shape of density field and velocity field if boundary conditions are given, use parameter "boundary_conditions" instead of class instance variable because it remains None if not given
-        if boundary_conditions is not None:
-            # modify density field and velocity field grid according to boundary conditions (0 at dry nodes outside of border)
-            # padding in format [[top, bottom], [left, right]]
-            padding = [(0,0), (0,0)]
-            # check only bottom and left because top and right are implicity given if bottom and left are defined not periodic
-            if self.boundary_conditions["bottom"] != "periodic":
-                padding[0] = (1, 1)
-            if self.boundary_conditions["left"] != "periodic":
-                padding[1] = (1, 1)
-
-            padding = tuple(padding)
-            # enlarge density field with padding of zeros
-            self.density_field_yx = np.pad(self.density_field_yx, padding, mode="constant", constant_values=0)
-            # enlarge velocity field with padding of zeros
-            velocity_padding = ((0,0), padding[0], padding[1])
-            self.velocity_field_Cyx = np.pad(self.velocity_field_Cyx, velocity_padding, mode="constant", constant_values=0)
-
+        # modify density field and velocity field grid according to boundary conditions (0 at dry nodes outside of border)
+        # padding in format [[top, bottom], [left, right]]
+        padding = [(1,1), (1,1)]
+        # boundary specific code not needed here anymore because all boundary conditions are handled with dry nodes outside of border
+        # # check only bottom and left because top and right are implicity given if bottom and left are defined not periodic
+        # if self.boundary_conditions["bottom"] != "periodic":
+        #     padding[0] = (1, 1)
+        # if self.boundary_conditions["left"] != "periodic":
+        #     padding[1] = (1, 1)
+        padding = tuple(padding)
+        # enlarge density field with padding of zeros
+        self.density_field_yx = np.pad(self.density_field_yx, padding, mode="constant", constant_values=0)
+        # enlarge velocity field with padding of zeros. The (0,0) is there so that the cartesian coordinate dimension is not padded.
+        velocity_padding = ((0,0), padding[0], padding[1])
+        self.velocity_field_Cyx = np.pad(self.velocity_field_Cyx, velocity_padding, mode="constant", constant_values=0)
 
         # if the viscosity is given, calculate omega else calculate viscosity from omega
         if self.viscosity is not None:
-            self.omega = 1 / (3 * self.viscosity + 0.5)
+            self.omega = 1 / ((1/self.c_s_squared) * self.viscosity + 0.5)
         else:
-            self.viscosity = (1 / 3) * (1 / self.omega - 0.5)
+            self.viscosity = self.c_s_squared * (1 / self.omega - 0.5)
 
         # check that omega is in the correct range
         if self.omega < 0 or self.omega > 2:
@@ -201,6 +219,93 @@ class LBM:
         self.velocity_field_Cyx = np.divide(np.einsum("iyx, iC->Cyx", self.f_iyx, self.lattice_directions_iC), self.density_field_yx[np.newaxis, ...], out=np.zeros_like(self.velocity_field_Cyx), where=self.density_field_yx != 0)
 
 
+    def get_density_field_yx(self, without_boundary = True):
+        """
+        Get the density field.
+
+        Parameters
+        ----------
+        without_boundary : bool, optional
+            If true, the density field without the boundary is returned. The default is True.
+
+        Returns
+        -------
+        np.ndarray
+            The density field.
+
+        """
+        if without_boundary:
+            return self.density_field_yx[1:-1, 1:-1]
+        else:
+            return self.density_field_yx
+        
+    def get_velocity_field_Cyx(self, without_boundary = True):
+        """
+        Get the velocity field.
+
+        Parameters
+        ----------
+        without_boundary : bool, optional
+            If true, the velocity field without the boundary is returned. The default is True.
+
+        Returns
+        -------
+        np.ndarray
+            The velocity field.
+
+        """
+        if without_boundary:
+            return self.velocity_field_Cyx[:, 1:-1, 1:-1]
+        else:
+            return self.velocity_field_Cyx
+
+    def calculate_equilibrium_distribution_function(self, density_field_yx : np.ndarray, velocity_field_Cyx : np.ndarray):
+        """
+        Calculate the equilibrium distribution function with given density and velocity fields.
+
+        Parameters
+        ----------
+        density_field_yx : np.ndarray
+            Density field.
+        velocity_field_Cyx : np.ndarray
+            Velocity field.
+
+        Returns
+        -------
+        np.ndarray
+            Equilibrium distribution function.
+
+        """
+        # precompute terms for equilibrium distribution
+        u_norm_squared_yx = np.einsum("Cyx, Cyx -> yx", velocity_field_Cyx, velocity_field_Cyx)
+        uc_iyx = np.einsum("Cyx, iC -> iyx", velocity_field_Cyx, self.lattice_directions_iC)
+
+        # update equilibrium distribution
+        return np.einsum('i, yx->iyx', self.lattice_weights_i, density_field_yx) * (1 + 3 * uc_iyx + 4.5 * uc_iyx**2 - 1.5 * u_norm_squared_yx)
+
+    def calculate_equilibrium_distribution_for_pressure_boundary(self, density_value : np.ndarray, velocity_dimension : np.ndarray):
+        """
+        Calculate the equilibrium distribution function for a pressure boundary condition.
+
+        Parameters
+        ----------
+        density_value : np.ndarray
+            Density value.
+        velocity_dimension : np.ndarray
+            Velocity dimension.
+
+        Returns
+        -------
+        np.ndarray
+            Equilibrium distribution function.
+
+        """
+        u_norm_squared_yx = np.einsum("Cd, Cd -> yx", velocity_dimension, velocity_dimension)
+        uc_iyx = np.einsum("Cd, iC -> id", velocity_dimension, self.lattice_directions_iC)
+
+        return density_value * self.lattice_weights_i * (1 + 3 * uc_iyx + 4.5 * uc_iyx**2 - 1.5 * u_norm_squared_yx)
+
+
     def update_equilibrium_distribution_function(self):
         """
         Update the equilibrium distribution function with current values of velocity and density fields.
@@ -212,6 +317,68 @@ class LBM:
         # update equilibrium distribution
         self.f_eq = np.einsum('i, yx->iyx', self.lattice_weights_i, self.density_field_yx) * (1 + 3 * uc_iyx + 4.5 * uc_iyx**2 - 1.5 * u_norm_squared_yx)
 
+    def boundary_handling_before_streaming(self):
+        """
+        Boundary handling before streaming step.
+        """
+
+        # only do boundary handling before streaming if boundary pressure is given
+        if self.boundary_pressure is None:
+            return
+        
+        # pressure boundary condition for horizontal pressure
+        if self.boundary_conditions["left"] == "periodic" and self.boundary_pressure["left"] is not None:
+            # get population of left boundary
+            f_left_iy = self.f_iyx[:, :, 1]
+            f_right_iy = self.f_iyx[:, :, -2]
+
+            f_start_pipe = None
+            f_end_pipe = None
+            rho_input = None
+            rho_output = None
+            input_index = None
+            output_index = None
+            input_border_index = None
+            output_border_index = None
+            if self.boundary_pressure["input"] == "left":
+                f_start_pipe = f_left_iy
+                f_end_pipe = f_right_iy
+                input_pressure = self.boundary_pressure["left"]
+                output_pressure = self.boundary_pressure["right"]
+                rho_input = (output_pressure + (output_pressure - input_pressure)) / self.c_s_squared
+                rho_output = output_pressure / self.c_s_squared
+                input_index = 1
+                output_index = -2
+                input_border_index = 0
+                output_border_index = -1
+
+            else:
+                f_start_pipe = f_right_iy
+                f_end_pipe = f_left_iy
+                input_pressure = self.boundary_pressure["right"]
+                output_pressure = self.boundary_pressure["left"]
+                rho_input = (output_pressure + (output_pressure - input_pressure)) / self.c_s_squared
+                rho_output = output_pressure / self.c_s_squared
+                input_index = -2
+                output_index = 1
+                input_border_index = -1
+                output_border_index = 0
+
+
+            self.update_velocity_field()
+            # calculate equilibrium distribution function of pipe with input pressure
+            f_eq_pipe_input_pressure = self.calculate_equilibrium_distribution_for_pressure_boundary(rho_input, self.velocity_field_Cyx[:, :, output_index])
+            # calculate equilibrium distribution function of pipe with output pressure
+            f_eq_pipe_output_pressure = self.calculate_equilibrium_distribution_for_pressure_boundary(rho_output, self.velocity_field_Cyx[:, :, input_index])
+
+            self.update_density_field()
+            self.update_velocity_field()
+            self.update_equilibrium_distribution_function()
+
+            self.f_iyx[:, :, input_border_index] = f_eq_pipe_input_pressure + (f_end_pipe - self.f_eq[:, :, output_index])
+            self.f_iyx[:, :, output_border_index] = f_eq_pipe_output_pressure + (f_start_pipe - self.f_eq[:, :, input_index])
+
+
 
     def boundary_handling_after_streaming(self):
         """
@@ -221,9 +388,9 @@ class LBM:
 
 
         # Remember that grid has origin in the bottom left corner and numpy origin is in the top left corner.
-
-        # apply bounce back boundary condition
         # care because numpy origin (top-left) is used here, not cartesian coordinate system
+
+        # bounce back boundary condition, also used in moving wall case
         if self.boundary_conditions["bottom"] != "periodic":
             self.f_iyx[self.inverse_direction_indices[4], -2, :] = self.f_iyx[4, -1, :]
             self.f_iyx[self.inverse_direction_indices[7], -2, :] = np.roll(self.f_iyx[7, -1, :], shift=1)
@@ -231,7 +398,19 @@ class LBM:
             self.f_iyx[4, -1, :] = 0
             self.f_iyx[7, -1, :] = 0
             self.f_iyx[8, -1, :] = 0
+
+        # basic periodic boundary condition.
+        else:
+            # explicit handling because layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
+            self.f_iyx[4, 1, :] = self.f_iyx[4, -1, :]
+            self.f_iyx[7, 1, :] = self.f_iyx[7, -1, :]
+            self.f_iyx[8, 1, :] = self.f_iyx[8, -1, :]
+            self.f_iyx[4, -1, :] = 0
+            self.f_iyx[7, -1, :] = 0
+            self.f_iyx[8, -1, :] = 0
+
         
+        # bounce back boundary condition, also used in moving wall case
         if self.boundary_conditions["top"] != "periodic":
             self.f_iyx[self.inverse_direction_indices[2], 1, :] = self.f_iyx[2, 0, :]
             self.f_iyx[self.inverse_direction_indices[5], 1, :] = np.roll(self.f_iyx[5, 0, :], shift=-1)
@@ -239,7 +418,20 @@ class LBM:
             self.f_iyx[2, 0, :] = 0
             self.f_iyx[5, 0, :] = 0
             self.f_iyx[6, 0, :] = 0
-        
+
+        # basic periodic boundary condition.
+        else:
+            # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
+            self.f_iyx[2, -2, :] = self.f_iyx[2, 0, :]
+            self.f_iyx[5, -2, :] = self.f_iyx[5, 0, :]
+            self.f_iyx[6, -2, :] = self.f_iyx[6, 0, :]
+            self.f_iyx[2, 0, :] = 0
+            self.f_iyx[5, 0, :] = 0
+            self.f_iyx[6, 0, :] = 0
+
+
+
+        # bounce back boundary condition, also used in moving wall case
         if self.boundary_conditions["left"] != "periodic":
             self.f_iyx[self.inverse_direction_indices[3], :, 1] = self.f_iyx[3, :, 0]
             self.f_iyx[self.inverse_direction_indices[6], :, 1] = np.roll(self.f_iyx[6, :, 0], shift=1)
@@ -248,6 +440,18 @@ class LBM:
             self.f_iyx[6, :, 0] = 0
             self.f_iyx[7, :, 0] = 0
 
+        # basic periodic boundary condition.
+        else:
+            # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
+            self.f_iyx[3, :, -2] = self.f_iyx[3, :, 0]
+            self.f_iyx[6, :, -2] = self.f_iyx[6, :, 0]
+            self.f_iyx[7, :, -2] = self.f_iyx[7, :, 0]
+            self.f_iyx[3, :, 0] = 0
+            self.f_iyx[6, :, 0] = 0
+            self.f_iyx[7, :, 0] = 0
+
+
+        # bounce back boundary condition, also used in moving wall case
         if self.boundary_conditions["right"] != "periodic":
             self.f_iyx[self.inverse_direction_indices[1], :, -2] = self.f_iyx[1, :, -1]
             self.f_iyx[self.inverse_direction_indices[5], :, -2] = np.roll(self.f_iyx[5, :, -1], shift=1)
@@ -255,7 +459,17 @@ class LBM:
             self.f_iyx[1, :, -1] = 0
             self.f_iyx[5, :, -1] = 0
             self.f_iyx[8, :, -1] = 0
-        
+
+        # basic periodic boundary condition.
+        else:
+            # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
+            self.f_iyx[1, :, 1] = self.f_iyx[1, :, -1]
+            self.f_iyx[5, :, 1] = self.f_iyx[5, :, -1]
+            self.f_iyx[8, :, 1] = self.f_iyx[8, :, -1]
+            self.f_iyx[1, :, -1] = 0
+            self.f_iyx[5, :, -1] = 0
+            self.f_iyx[8, :, -1] = 0
+
         
         # apply moving wall boundary condition
         # positive velocity direction is to right and up 
@@ -316,7 +530,7 @@ class LBM:
 
 if __name__ == "__main__":
     lbm = LBM(15, 10)
-    print(lbm.f_iyx.shape)
+    # print(lbm.f_iyx.shape)
     lbm.step()
-    print(lbm.f_iyx.shape)
+    # print(lbm.f_iyx.shape)
             

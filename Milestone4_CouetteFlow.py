@@ -35,7 +35,7 @@ def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps 
     lbm = LBM(grid_size_x, grid_size_y, omega, inital_velocity_field_Cyx=initial_velocity_field_Cyx, boundary_conditions=boundary_conditions, boundary_velocities=boundary_velocities)
 
     # simulate Couette flow
-    simulated_velocity_field_tCyx = [lbm.velocity_field_Cyx]
+    simulated_velocity_field_tCyx = [lbm.get_velocity_field_Cyx()]
     indices = [0]
     print("Simulating Couette flow...")
 
@@ -46,7 +46,7 @@ def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps 
             print("Timestep " + str(i) + " of " + str(timesteps))
         
             lbm.update_velocity_field()
-            simulated_velocity_field_tCyx.append(lbm.velocity_field_Cyx)
+            simulated_velocity_field_tCyx.append(lbm.get_velocity_field_Cyx())
             indices.append(i)
 
     print("Plotting results...")

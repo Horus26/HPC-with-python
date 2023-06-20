@@ -98,7 +98,7 @@ def density_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : float
 
     analytical_viscositity = lbm.viscosity
     simulated_density_field_tyx = []
-    simulated_density_field_tyx.append(lbm.density_field_yx)
+    simulated_density_field_tyx.append(lbm.get_density_field_yx(True))
     analytical_density_field_tx = []
     analytical_density_field_tx.append(calc_analytical_solution(a0, analytical_viscositity, L, timestep=0, period=period, offset=rho0))
 
@@ -111,12 +111,12 @@ def density_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : float
     for i in range(timesteps):
         lbm.step()
         lbm.update_density_field()
-        simulated_density_field_tyx.append(lbm.density_field_yx)
+        simulated_density_field_tyx.append(lbm.get_density_field_yx(True))
         analytical_density_field_tx.append(calc_analytical_solution(a0, analytical_viscositity, L, timestep=i+1, period=period, offset=rho0))
 
         # if plot and i in timesteps_for_plotting:
         if plot and (i % 100 == 0 or i == timesteps - 1):
-            ax1.plot(np.arange(L), lbm.density_field_yx[0, :], label="t={}".format(i))
+            ax1.plot(np.arange(L), lbm.get_density_field_yx(True)[0, :], label="t={}".format(i))
     
     if plot:
         ax1.set_xlabel("x")
@@ -194,7 +194,7 @@ def velocity_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : floa
 
     analytical_viscositity = lbm.viscosity
     simulated_velocity_field_tyx = []
-    simulated_velocity_field_tyx.append(lbm.velocity_field_Cyx[0, :, :])
+    simulated_velocity_field_tyx.append(lbm.get_velocity_field_Cyx(True)[0, :, :])
     analytical_velocity_field_ty = []
     analytical_velocity_field_ty.append(calc_analytical_solution(a0, analytical_viscositity, L, timestep=0, period=period))          
 
@@ -208,13 +208,13 @@ def velocity_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : floa
         lbm.step()
         lbm.update_velocity_field()
         # only keep the x component of the velocity field
-        simulated_velocity_field_tyx.append(lbm.velocity_field_Cyx[0, :, :])
+        simulated_velocity_field_tyx.append(lbm.get_velocity_field_Cyx(True)[0, :, :])
         analytical_velocity_field_ty.append(calc_analytical_solution(a0, analytical_viscositity, L, timestep=i+1, period=period))
 
         # if plot and i in timesteps_for_plotting:
         if plot and i % 100 == 0:
             # plot the x component of the velocity field at an arbitrary x position (here 0) and over all y positions
-            ax1.plot(np.arange(L), lbm.velocity_field_Cyx[0, :, 0], label="t={}".format(i))
+            ax1.plot(np.arange(L), lbm.get_velocity_field_Cyx(True)[0, :, 0], label="t={}".format(i))
     
     if plot:
         ax1.set_xlabel("y")
