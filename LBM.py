@@ -36,7 +36,7 @@ class LBM:
                  inital_velocity_field_Cyx : np.ndarray = None,
                  boundary_conditions : dict = None,
                  boundary_velocities : dict = None,
-                 boundary_pressure : dict = None
+                 boundary_pressure_info : dict = None
                  ) -> None:
         """
         Initialize the LBM simulation.
@@ -68,7 +68,7 @@ class LBM:
         self.width = width
         self.height = height
         self.boundary_conditions = boundary_conditions
-        self.boundary_pressure = boundary_pressure
+        self.boundary_pressure_info = boundary_pressure_info
         self.pressure_boundary_instance = None
         self.valid_boundary_conditions = ["periodic", "bounce_back", "moving_wall"]
         self.boundary_velocities = boundary_velocities
@@ -100,10 +100,10 @@ class LBM:
                 raise ValueError("Right boundary condition is periodic but left boundary condition is not. This is not possible.")
 
             # check if boundary pressure is given correctly
-            if self.boundary_pressure is not None:
-                if (self.boundary_pressure["bottom"] is None) != (self.boundary_pressure["top"] is None):
+            if self.boundary_pressure_info is not None:
+                if (self.boundary_pressure_info["bottom"] is None) != (self.boundary_pressure_info["top"] is None):
                     raise ValueError("Bottom and top boundary pressure are different types. This is not possible.")
-                if (self.boundary_pressure["left"] is None) != (self.boundary_pressure["right"] is None):
+                if (self.boundary_pressure_info["left"] is None) != (self.boundary_pressure_info["right"] is None):
                     raise ValueError("Left and right boundary pressure are different types. This is not possible.")
 
                 # prepare boundary pressure instance
@@ -118,23 +118,23 @@ class LBM:
                 input_border_index = None
                 output_border_index = None
                 # check for horizontal pressure boundary
-                if self.boundary_conditions["left"] == "periodic" and self.boundary_pressure["left"] is not None:
-                    if self.boundary_pressure["input"] == "left":
+                if self.boundary_conditions["left"] == "periodic" and self.boundary_pressure_info["left"] is not None:
+                    if self.boundary_pressure_info["input"] == "left":
                         f_start_pipe_index_yx = [None, 1]
                         f_end_pipe_index_yx = [None, -2]
-                        input_pressure = self.boundary_pressure["left"]
-                        output_pressure = self.boundary_pressure["right"]
+                        input_pressure = self.boundary_pressure_info["left"]
+                        output_pressure = self.boundary_pressure_info["right"]
                         input_border_update_channels = [1, 5, 8]
                         output_border_update_channels = [3, 6, 7]
                         input_index = 1
                         output_index = -2
                         input_border_index = 0
                         output_border_index = -1
-                    elif self.boundary_pressure["input"] == "right":
+                    elif self.boundary_pressure_info["input"] == "right":
                         f_start_pipe_index_yx = [None, -2]
                         f_end_pipe_index_yx = [None, 1]
-                        input_pressure = self.boundary_pressure["right"]
-                        output_pressure = self.boundary_pressure["left"]
+                        input_pressure = self.boundary_pressure_info["right"]
+                        output_pressure = self.boundary_pressure_info["left"]
                         input_border_update_channels = [3, 6, 7]
                         output_border_update_channels = [1, 5, 8]
                         input_index = -2
@@ -142,26 +142,26 @@ class LBM:
                         input_border_index = -1
                         output_border_index = 0
                     else:
-                        raise ValueError("Input boundary pressure is not defined correctly. Given value: {}, expected: left or right".format(self.boundary_pressure["input"]))
+                        raise ValueError("Input boundary pressure is not defined correctly. Given value: {}, expected: left or right".format(self.boundary_pressure_info["input"]))
 
                 # check for vertical pressure boundary
-                elif self.boundary_conditions["bottom"] == "periodic" and self.boundary_pressure["bottom"] is not None:
-                    if self.boundary_pressure["input"] == "bottom":
+                elif self.boundary_conditions["bottom"] == "periodic" and self.boundary_pressure_info["bottom"] is not None:
+                    if self.boundary_pressure_info["input"] == "bottom":
                         f_start_pipe_index_yx = [-2, None]
                         f_end_pipe_index_yx = [1, None]
-                        input_pressure = self.boundary_pressure["bottom"]
-                        output_pressure = self.boundary_pressure["top"]
+                        input_pressure = self.boundary_pressure_info["bottom"]
+                        output_pressure = self.boundary_pressure_info["top"]
                         input_border_update_channels = [2, 5, 6]
                         output_border_update_channels = [4, 7, 8]
                         input_index = -2
                         output_index = 1
                         input_border_index = -1
                         output_border_index = 0
-                    elif self.boundary_pressure["input"] == "top":
+                    elif self.boundary_pressure_info["input"] == "top":
                         f_start_pipe_index_yx = [1, None]
                         f_end_pipe_index_yx = [-2, None]
-                        input_pressure = self.boundary_pressure["top"]
-                        output_pressure = self.boundary_pressure["bottom"]
+                        input_pressure = self.boundary_pressure_info["top"]
+                        output_pressure = self.boundary_pressure_info["bottom"]
                         input_border_update_channels = [4, 7, 8]
                         output_border_update_channels = [2, 5, 6]
                         input_index = 1
@@ -169,7 +169,7 @@ class LBM:
                         input_border_index = 0
                         output_border_index = -1
                     else:
-                        raise ValueError("Input boundary pressure is not defined correctly. Given value: {}, expected: bottom or top".format(self.boundary_pressure["input"]))
+                        raise ValueError("Input boundary pressure is not defined correctly. Given value: {}, expected: bottom or top".format(self.boundary_pressure_info["input"]))
                 else:
                     raise ValueError("Boundary pressure is not defined correctly.")
                 
@@ -381,8 +381,14 @@ class LBM:
         u_norm_squared_yx = np.einsum("Cyx, Cyx -> yx", self.velocity_field_Cyx, self.velocity_field_Cyx)
         uc_iyx = np.einsum("Cyx, iC -> iyx", self.velocity_field_Cyx, self.lattice_directions_iC)
 
+        # raise error if velocity is nan
+        if np.isnan(np.max(np.abs(self.velocity_field_Cyx))):
+            raise ValueError("Velocity field contains nan values.")
+
         # update equilibrium distribution
         self.f_eq = np.einsum('i, yx->iyx', self.lattice_weights_i, self.density_field_yx) * (1 + 3 * uc_iyx + 4.5 * uc_iyx**2 - 1.5 * u_norm_squared_yx)
+
+
 
     def boundary_handling_before_streaming(self):
         """
@@ -390,7 +396,7 @@ class LBM:
         """
 
         # only do boundary handling before streaming if boundary pressure is given
-        if self.boundary_pressure is None or self.pressure_boundary_instance is None:
+        if self.boundary_pressure_info is None or self.pressure_boundary_instance is None:
             return
         
         self.update_density_field()
@@ -524,7 +530,8 @@ class LBM:
             self.f_iyx[7, :, -2] += 0.5 * (self.f_iyx[2, :, -2] - self.f_iyx[4, :, -2]) - 0.5 * density_right * self.boundary_velocities["right"]
 
         # apply pressure boundary condition
-        if self.boundary_pressure is not None:
+        if self.boundary_pressure_info is not None:
+            # print("Input border update channels: {}".format(self.pressure_boundary_instance.input_border_update_channels))
             for i in self.pressure_boundary_instance.input_border_update_channels:
                 self.f_iyx[i, :, self.pressure_boundary_instance.input_border_index] = self.f_input_border_pre_streaming[i, :]
             for i in self.pressure_boundary_instance.output_border_update_channels:

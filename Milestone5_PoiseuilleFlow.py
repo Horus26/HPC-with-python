@@ -23,14 +23,14 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     None.
     """
     base_pressure = 1
-    inlet_pressure = base_pressure + 0.0005
-    outlet_pressure = base_pressure - 0.0005
+    inlet_pressure = base_pressure + 0.0001
+    outlet_pressure = base_pressure - 0.0001
     
     boundary_conditions = {"bottom": "bounce_back", "top": "bounce_back", "left": "periodic", "right": "periodic"}
     boundary_pressure = {"bottom": None, "top": None, "left": inlet_pressure, "right": outlet_pressure, "output": "right", "input": "left"}
 
     # initialize LBM
-    lbm = LBM(grid_size_x, grid_size_y, omega, boundary_conditions=boundary_conditions, boundary_pressure=boundary_pressure)
+    lbm = LBM(grid_size_x, grid_size_y, omega, boundary_conditions=boundary_conditions, boundary_pressure_info=boundary_pressure)
 
     # simulate Poiseuille flow
     print("Simulating Poiseuille flow...")
@@ -102,8 +102,8 @@ def calc_poiseuille_flow_analytical_solution(pipe_height : int, pipe_length : in
 
 if __name__ == "__main__":
 
-    grid_size_x = 200
-    grid_size_y = 100
+    grid_size_x = 20
+    grid_size_y = 10
     omega = 1.0
     timesteps = 10000
     poiseuille_flow(grid_size_x, grid_size_y, omega, timesteps)
