@@ -1,4 +1,5 @@
 import numpy as np
+from PressureBoundary import PressureBoundary
 
 class LBM:
     """
@@ -58,6 +59,8 @@ class LBM:
             Boundary conditions. The default is None. If not defined, the boundary conditions are set to periodic.
         boundary_velocities : dict, optional
             Boundary velocities. The default is None. If not defined, the boundary velocities are set to zero.
+        boundary_pressure : dict, optional
+            Boundary pressure. The default is None.
 
         """
 
@@ -66,6 +69,7 @@ class LBM:
         self.height = height
         self.boundary_conditions = boundary_conditions
         self.boundary_pressure = boundary_pressure
+        self.pressure_boundary_instance = None
         self.valid_boundary_conditions = ["periodic", "bounce_back", "moving_wall"]
         self.boundary_velocities = boundary_velocities
         if self.boundary_velocities is None:
@@ -102,18 +106,77 @@ class LBM:
                 if (self.boundary_pressure["left"] is None) != (self.boundary_pressure["right"] is None):
                     raise ValueError("Left and right boundary pressure are different types. This is not possible.")
 
-            # # enlarge the grid depending on the boundary conditions
-            # for key, value in  self.boundary_conditions.items():
-            #     if value not in self.valid_boundary_conditions:
-            #         raise ValueError("Boundary condition is not valid. Given value: {}, expected: periodic, bounce_back or moving_wall".format(value))
+                # prepare boundary pressure instance
+                f_start_pipe_index_yx = None
+                f_end_pipe_index_yx = None
+                rho_input = None
+                rho_output = None
+                input_border_update_channels = None
+                output_border_update_channels = None
+                input_index = None
+                output_index = None
+                input_border_index = None
+                output_border_index = None
+                # check for horizontal pressure boundary
+                if self.boundary_conditions["left"] == "periodic" and self.boundary_pressure["left"] is not None:
+                    if self.boundary_pressure["input"] == "left":
+                        f_start_pipe_index_yx = [None, 1]
+                        f_end_pipe_index_yx = [None, -2]
+                        input_pressure = self.boundary_pressure["left"]
+                        output_pressure = self.boundary_pressure["right"]
+                        input_border_update_channels = [1, 5, 8]
+                        output_border_update_channels = [3, 6, 7]
+                        input_index = 1
+                        output_index = -2
+                        input_border_index = 0
+                        output_border_index = -1
+                    elif self.boundary_pressure["input"] == "right":
+                        f_start_pipe_index_yx = [None, -2]
+                        f_end_pipe_index_yx = [None, 1]
+                        input_pressure = self.boundary_pressure["right"]
+                        output_pressure = self.boundary_pressure["left"]
+                        input_border_update_channels = [3, 6, 7]
+                        output_border_update_channels = [1, 5, 8]
+                        input_index = -2
+                        output_index = 1
+                        input_border_index = -1
+                        output_border_index = 0
+                    else:
+                        raise ValueError("Input boundary pressure is not defined correctly. Given value: {}, expected: left or right".format(self.boundary_pressure["input"]))
+
+                # check for vertical pressure boundary
+                elif self.boundary_conditions["bottom"] == "periodic" and self.boundary_pressure["bottom"] is not None:
+                    if self.boundary_pressure["input"] == "bottom":
+                        f_start_pipe_index_yx = [-2, None]
+                        f_end_pipe_index_yx = [1, None]
+                        input_pressure = self.boundary_pressure["bottom"]
+                        output_pressure = self.boundary_pressure["top"]
+                        input_border_update_channels = [2, 5, 6]
+                        output_border_update_channels = [4, 7, 8]
+                        input_index = -2
+                        output_index = 1
+                        input_border_index = -1
+                        output_border_index = 0
+                    elif self.boundary_pressure["input"] == "top":
+                        f_start_pipe_index_yx = [1, None]
+                        f_end_pipe_index_yx = [-2, None]
+                        input_pressure = self.boundary_pressure["top"]
+                        output_pressure = self.boundary_pressure["bottom"]
+                        input_border_update_channels = [4, 7, 8]
+                        output_border_update_channels = [2, 5, 6]
+                        input_index = 1
+                        output_index = -2
+                        input_border_index = 0
+                        output_border_index = -1
+                    else:
+                        raise ValueError("Input boundary pressure is not defined correctly. Given value: {}, expected: bottom or top".format(self.boundary_pressure["input"]))
+                else:
+                    raise ValueError("Boundary pressure is not defined correctly.")
                 
-            #     # also change height if periodic and pressure boundary conditions are given
-            #     if (value != "periodic" or ((key=="bottom" or key == "top") and self.boundary_pressure is not None and self.boundary_pressure[key] is not None)) and (key == "bottom" or key == "top"):
-            #         self.height += 1
-                
-            #     # also change width if periodic and pressure boundary conditions are given
-            #     if (value != "periodic" or ((key=="left" or key == "right") and self.boundary_pressure is not None and self.boundary_pressure[key] is not None)) and (key == "left" or key == "right"):
-            #         self.width += 1
+                rho_input = (output_pressure + (output_pressure - input_pressure)) / self.c_s_squared
+                rho_output = output_pressure / self.c_s_squared               
+                self.pressure_boundary_instance = PressureBoundary(f_start_pipe_index_yx, f_end_pipe_index_yx, input_pressure, output_pressure, rho_input, rho_output, input_border_update_channels, output_border_update_channels, input_index, output_index, input_border_index, output_border_index)
+
 
         # always enlarge the grid
         self.height += 2
@@ -128,6 +191,10 @@ class LBM:
         self.velocity_field_Cyx = inital_velocity_field_Cyx
         self.f_eq = np.zeros((9, self.height, self.width))
         self.f_iyx = np.zeros((9, self.height, self.width))
+
+        # variables for periodic boundary with pressure gradient
+        self.f_input_border_pre_streaming = None
+        self.f_output_border_pre_streaming = None
 
 
         # Initialize the lattice directions. Given in cartesian coordinates C=(x,y) for every lattice dimension i.
@@ -300,10 +367,10 @@ class LBM:
             Equilibrium distribution function.
 
         """
-        u_norm_squared_yx = np.einsum("Cd, Cd -> yx", velocity_dimension, velocity_dimension)
+        u_norm_squared_yx = np.einsum("Cd, Cd -> d", velocity_dimension, velocity_dimension)
         uc_iyx = np.einsum("Cd, iC -> id", velocity_dimension, self.lattice_directions_iC)
 
-        return density_value * self.lattice_weights_i * (1 + 3 * uc_iyx + 4.5 * uc_iyx**2 - 1.5 * u_norm_squared_yx)
+        return np.einsum("i, id -> id", (density_value * self.lattice_weights_i), (1 + 3 * uc_iyx + 4.5 * uc_iyx**2 - 1.5 * u_norm_squared_yx))
 
 
     def update_equilibrium_distribution_function(self):
@@ -323,62 +390,25 @@ class LBM:
         """
 
         # only do boundary handling before streaming if boundary pressure is given
-        if self.boundary_pressure is None:
+        if self.boundary_pressure is None or self.pressure_boundary_instance is None:
             return
         
-        # pressure boundary condition for horizontal pressure
-        if self.boundary_conditions["left"] == "periodic" and self.boundary_pressure["left"] is not None:
-            # get population of left boundary
-            f_left_iy = self.f_iyx[:, :, 1]
-            f_right_iy = self.f_iyx[:, :, -2]
+        self.update_density_field()
+        self.update_velocity_field()
+        self.update_equilibrium_distribution_function()
 
-            f_start_pipe = None
-            f_end_pipe = None
-            rho_input = None
-            rho_output = None
-            input_index = None
-            output_index = None
-            input_border_index = None
-            output_border_index = None
-            if self.boundary_pressure["input"] == "left":
-                f_start_pipe = f_left_iy
-                f_end_pipe = f_right_iy
-                input_pressure = self.boundary_pressure["left"]
-                output_pressure = self.boundary_pressure["right"]
-                rho_input = (output_pressure + (output_pressure - input_pressure)) / self.c_s_squared
-                rho_output = output_pressure / self.c_s_squared
-                input_index = 1
-                output_index = -2
-                input_border_index = 0
-                output_border_index = -1
+        # precompute update values from pressure boundary condition to be applied after streaming
 
-            else:
-                f_start_pipe = f_right_iy
-                f_end_pipe = f_left_iy
-                input_pressure = self.boundary_pressure["right"]
-                output_pressure = self.boundary_pressure["left"]
-                rho_input = (output_pressure + (output_pressure - input_pressure)) / self.c_s_squared
-                rho_output = output_pressure / self.c_s_squared
-                input_index = -2
-                output_index = 1
-                input_border_index = -1
-                output_border_index = 0
+        # calculate equilibrium distribution function of pipe with input pressure
+        f_eq_pipe_input_pressure_iy = self.calculate_equilibrium_distribution_for_pressure_boundary(self.pressure_boundary_instance.rho_input, self.velocity_field_Cyx[:, :, self.pressure_boundary_instance.output_index])
+        # calculate equilibrium distribution function of pipe with output pressure
+        f_eq_pipe_output_pressure_iy = self.calculate_equilibrium_distribution_for_pressure_boundary(self.pressure_boundary_instance.rho_output, self.velocity_field_Cyx[:, :, self.pressure_boundary_instance.input_index])
 
+        f_start_pipe_iy = self.f_iyx[:, :, self.pressure_boundary_instance.input_index]
+        f_end_pipe_iy = self.f_iyx[:, :, self.pressure_boundary_instance.output_index]
 
-            self.update_velocity_field()
-            # calculate equilibrium distribution function of pipe with input pressure
-            f_eq_pipe_input_pressure = self.calculate_equilibrium_distribution_for_pressure_boundary(rho_input, self.velocity_field_Cyx[:, :, output_index])
-            # calculate equilibrium distribution function of pipe with output pressure
-            f_eq_pipe_output_pressure = self.calculate_equilibrium_distribution_for_pressure_boundary(rho_output, self.velocity_field_Cyx[:, :, input_index])
-
-            self.update_density_field()
-            self.update_velocity_field()
-            self.update_equilibrium_distribution_function()
-
-            self.f_iyx[:, :, input_border_index] = f_eq_pipe_input_pressure + (f_end_pipe - self.f_eq[:, :, output_index])
-            self.f_iyx[:, :, output_border_index] = f_eq_pipe_output_pressure + (f_start_pipe - self.f_eq[:, :, input_index])
-
-
+        self.f_input_border_pre_streaming = f_eq_pipe_input_pressure_iy + (f_end_pipe_iy - self.f_eq[:, :, self.pressure_boundary_instance.output_index])
+        self.f_output_border_pre_streaming = f_eq_pipe_output_pressure_iy + (f_start_pipe_iy - self.f_eq[:, :, self.pressure_boundary_instance.input_index])
 
     def boundary_handling_after_streaming(self):
         """
@@ -493,6 +523,14 @@ class LBM:
             self.f_iyx[3, :, -2] += 0.5 * (self.f_iyx[4, :, -2] - self.f_iyx[2, :, -2]) + 0.5 * density_right * self.boundary_velocities["right"]
             self.f_iyx[7, :, -2] += 0.5 * (self.f_iyx[2, :, -2] - self.f_iyx[4, :, -2]) - 0.5 * density_right * self.boundary_velocities["right"]
 
+        # apply pressure boundary condition
+        if self.boundary_pressure is not None:
+            for i in self.pressure_boundary_instance.input_border_update_channels:
+                self.f_iyx[i, :, self.pressure_boundary_instance.input_border_index] = self.f_input_border_pre_streaming[i, :]
+            for i in self.pressure_boundary_instance.output_border_update_channels:
+                self.f_iyx[i, :, self.pressure_boundary_instance.output_border_index] = self.f_output_border_pre_streaming[i, :]
+
+
     def streaming(self):
         """
         Streaming step of the LBM.
@@ -516,6 +554,7 @@ class LBM:
         """
         One step of the LBM.
         """
+        self.boundary_handling_before_streaming()
         self.streaming()
         self.boundary_handling_after_streaming()
         self.collision()
