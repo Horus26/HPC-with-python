@@ -173,7 +173,7 @@ class LBM:
                 else:
                     raise ValueError("Boundary pressure is not defined correctly.")
                 
-                rho_input = (output_pressure + (output_pressure - input_pressure)) / self.c_s_squared
+                rho_input = (output_pressure + (input_pressure - output_pressure)) / self.c_s_squared
                 rho_output = output_pressure / self.c_s_squared               
                 self.pressure_boundary_instance = PressureBoundary(f_start_pipe_index_yx, f_end_pipe_index_yx, input_pressure, output_pressure, rho_input, rho_output, input_border_update_channels, output_border_update_channels, input_index, output_index, input_border_index, output_border_index)
 
@@ -412,7 +412,7 @@ class LBM:
 
         f_start_pipe_iy = self.f_iyx[:, :, self.pressure_boundary_instance.input_index]
         f_end_pipe_iy = self.f_iyx[:, :, self.pressure_boundary_instance.output_index]
-
+        
         self.f_input_border_pre_streaming = f_eq_pipe_input_pressure_iy + (f_end_pipe_iy - self.f_eq[:, :, self.pressure_boundary_instance.output_index])
         self.f_output_border_pre_streaming = f_eq_pipe_output_pressure_iy + (f_start_pipe_iy - self.f_eq[:, :, self.pressure_boundary_instance.input_index])
 
@@ -436,7 +436,7 @@ class LBM:
             self.f_iyx[8, -1, :] = 0
 
         # basic periodic boundary condition.
-        else:
+        elif self.boundary_pressure is None or (self.boundary_pressure is not None and self.boundary_pressure["bottom"] is None):
             # explicit handling because layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
             self.f_iyx[4, 1, :] = self.f_iyx[4, -1, :]
             self.f_iyx[7, 1, :] = self.f_iyx[7, -1, :]
@@ -456,7 +456,7 @@ class LBM:
             self.f_iyx[6, 0, :] = 0
 
         # basic periodic boundary condition.
-        else:
+        elif self.boundary_pressure is None or (self.boundary_pressure is not None and self.boundary_pressure["top"] is None):
             # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
             self.f_iyx[2, -2, :] = self.f_iyx[2, 0, :]
             self.f_iyx[5, -2, :] = self.f_iyx[5, 0, :]
@@ -476,8 +476,8 @@ class LBM:
             self.f_iyx[6, :, 0] = 0
             self.f_iyx[7, :, 0] = 0
 
-        # basic periodic boundary condition.
-        else:
+        # basic periodic boundary condition without pressure gradient.
+        elif self.boundary_pressure is None or (self.boundary_pressure is not None and self.boundary_pressure["left"] is None):
             # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
             self.f_iyx[3, :, -2] = self.f_iyx[3, :, 0]
             self.f_iyx[6, :, -2] = self.f_iyx[6, :, 0]
@@ -497,7 +497,7 @@ class LBM:
             self.f_iyx[8, :, -1] = 0
 
         # basic periodic boundary condition.
-        else:
+        elif self.boundary_pressure is None or (self.boundary_pressure is not None and self.boundary_pressure["right"] is None):
             # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
             self.f_iyx[1, :, 1] = self.f_iyx[1, :, -1]
             self.f_iyx[5, :, 1] = self.f_iyx[5, :, -1]

@@ -64,7 +64,7 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
         if i % 1000 == 0 or i == indices[-1]:
             ax_vel_profile_Lx2.plot(np.array(simulated_velocity_field_Cyx)[0, 1:-1, lx2], y, label="t = " + str(i), color=colors[int(i/1000)])
 
-    ax_vel_profile_Lx2.plot(analytical_solution_y, np.arange(grid_size_y) , label="Analytical solution", color="black", linestyle="--")
+    # ax_vel_profile_Lx2.plot(analytical_solution_y, np.arange(grid_size_y) , label="Analytical solution", color="black", linestyle="--")
     ax_vel_profile_Lx2.legend()
     plt.savefig("PoiseuilleFlowResults/PoiseuilleFlow_VelocityProfile_Lx2_over_y.png")
     plt.show()
@@ -95,7 +95,7 @@ def calc_poiseuille_flow_analytical_solution(pipe_height : int, pipe_length : in
     derivative = pressure_difference / pipe_length
 
     y = np.arange(pipe_height)
-    analytical_solution = -0.5 * (1/dynamic_viscosity) * derivative * y * (pipe_height - 1 - y)
+    analytical_solution = 0.5 * (1/dynamic_viscosity) * derivative * y * (y - pipe_height - 1)
     return analytical_solution
 
 
