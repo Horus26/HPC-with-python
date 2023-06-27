@@ -22,12 +22,18 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     -------
     None.
     """
-    base_pressure = 1
-    inlet_pressure = base_pressure + 0.0001
-    outlet_pressure = base_pressure - 0.0001
+    base_pressure = 1 / 3
+    pressure_difference = 0.001
+    inlet_pressure = base_pressure + pressure_difference
+    outlet_pressure = base_pressure - pressure_difference
+
+    # outlet_pressure = inlet_pressure
+    # inlet_pressure = 0
+    # outlet_pressure = 0
     
     boundary_conditions = {"bottom": "bounce_back", "top": "bounce_back", "left": "periodic", "right": "periodic"}
     boundary_pressure = {"bottom": None, "top": None, "left": inlet_pressure, "right": outlet_pressure, "output": "right", "input": "left"}
+    # boundary_pressure = None
 
     # initialize LBM
     lbm = LBM(grid_size_x, grid_size_y, omega, boundary_conditions=boundary_conditions, boundary_pressure_info=boundary_pressure)
@@ -49,7 +55,7 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     max_velocity = np.max(np.array(simulated_velocity_field_tCyx)[:, 0, :, :])
 
     analytical_viscosity = (1/3) * (1/omega - 0.5)
-    analytical_solution_y = calc_poiseuille_flow_analytical_solution(grid_size_y, grid_size_x, inlet_pressure, outlet_pressure, analytical_viscosity, density=1)
+    analytical_solution_y = calc_poiseuille_flow_analytical_solution(lbm.height-2, lbm.width-2, inlet_pressure, outlet_pressure, analytical_viscosity, density=1)
 
     # plot the velocity profile at L_x / 2 over time
     lx2 = int(lbm.width/2)
@@ -57,15 +63,16 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     ax_vel_profile_Lx2 = fig_velocity_profile_Lx2.add_subplot(111)
     ax_vel_profile_Lx2.set_xlabel("Velocity")
     ax_vel_profile_Lx2.set_ylabel("y")
-    ax_vel_profile_Lx2.set_ylim(0, lbm.height-1)
+    # ax_vel_profile_Lx2.set_ylim(0, lbm.height)
     y = np.arange(lbm.height-2, 0, -1)
-    colors = matplotlib.cm.rainbow(np.linspace(0, 1, np.ceil(timesteps/1000).astype(int) + 1))
+    colors = matplotlib.cm.rainbow(np.linspace(0, 1, np.ceil(timesteps/100).astype(int) + 1))
     for i, simulated_velocity_field_Cyx in zip(indices, simulated_velocity_field_tCyx):
-        if i % 1000 == 0 or i == indices[-1]:
-            ax_vel_profile_Lx2.plot(np.array(simulated_velocity_field_Cyx)[0, 1:-1, lx2], y, label="t = " + str(i), color=colors[int(i/1000)])
+        if (i % 100 == 0 or i == indices[-1]):# and i > timesteps/2:
+            ax_vel_profile_Lx2.plot(np.array(simulated_velocity_field_Cyx)[0, 1:-1, lx2], y, label="t = " + str(i), color=colors[int(i/100)])
 
-    # ax_vel_profile_Lx2.plot(analytical_solution_y, np.arange(grid_size_y) , label="Analytical solution", color="black", linestyle="--")
+    ax_vel_profile_Lx2.plot(analytical_solution_y, np.arange(1, lbm.height-1), label="Analytical solution", color="black", linestyle="--")
     ax_vel_profile_Lx2.legend()
+    plt.tight_layout()
     plt.savefig("PoiseuilleFlowResults/PoiseuilleFlow_VelocityProfile_Lx2_over_y.png")
     plt.show()
 
@@ -95,15 +102,15 @@ def calc_poiseuille_flow_analytical_solution(pipe_height : int, pipe_length : in
     derivative = pressure_difference / pipe_length
 
     y = np.arange(pipe_height)
-    analytical_solution = 0.5 * (1/dynamic_viscosity) * derivative * y * (y - pipe_height - 1)
+    analytical_solution = 0.5 * (1/dynamic_viscosity) * derivative * y * (y - (pipe_height - 1))
     return analytical_solution
 
 
 
 if __name__ == "__main__":
 
-    grid_size_x = 20
-    grid_size_y = 10
+    grid_size_x = 80
+    grid_size_y = 30
     omega = 1.0
-    timesteps = 10000
+    timesteps = 1600
     poiseuille_flow(grid_size_x, grid_size_y, omega, timesteps)
