@@ -38,7 +38,7 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
     # change matplotlib backend to show animation (not TkAgg)
     # matplotlib.use("Qt5Agg")
 
-
+    safe_timesteps = [1, 10, 50, 100, 500]
     fig_velocity_animation = plt.figure()
     ax = fig_velocity_animation.add_subplot(111)
     cbar = fig_velocity_animation.colorbar(ax=ax, mappable=matplotlib.cm.ScalarMappable(norm=plt.Normalize(0, lid_velocity), cmap="viridis"))
@@ -47,33 +47,33 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
     for i in range(1, timesteps):
         lbm.step()
 
-        if i%(int(timesteps/200)) == 0:
+        if i%500 == 0:
             print("Timestep " + str(i) + " of " + str(timesteps))
-            ax.clear()
-            ax.set_xlabel("x")
-            ax.set_ylabel("y")
-            ax.set_aspect("equal")
-            ax.set_xlim(-10, lbm.width+10)
-            ax.set_ylim(-10, lbm.height+10)
-            ax.set_title("Velocity streamplot at t = " + str(i))
-            lbm.update_velocity_field()
-            velocity_field = lbm.get_velocity_field_Cyx(False)
-            velocity_field = np.flip(velocity_field, axis=1)
-            u_x = velocity_field[0]
-            u_y = velocity_field[1]
+            # ax.clear()
+            # ax.set_xlabel("x")
+            # ax.set_ylabel("y")
+            # ax.set_aspect("equal")
+            # ax.set_xlim(-10, lbm.width+10)
+            # ax.set_ylim(-10, lbm.height+10)
+            # ax.set_title("Velocity streamplot at t = " + str(i))
+            # lbm.update_velocity_field()
+            # velocity_field = lbm.get_velocity_field_Cyx(False)
+            # velocity_field = np.flip(velocity_field, axis=1)
+            # u_x = velocity_field[0]
+            # u_y = velocity_field[1]
             
-            ax.streamplot(np.arange(0, lbm.width), np.arange(0, lbm.height), u_x, u_y, color=np.sqrt(u_x**2 + u_y**2), density=1.5, norm=plt.Normalize(0, lid_velocity))
-            ax.plot([-0.5, lbm.width - 0.5], [lbm.height-1.5, lbm.height-1.5], color="red", label="Moving wall")
-            ax.plot([-0.5, lbm.width - 0.5], [0.5, 0.5], color="black", label = "Fixed wall")
-            # draw vertical boundaries
-            ax.plot([-0.5, -0.5], [0.5, lbm.height- 1.5], color="black")
-            ax.plot([lbm.width-0.5, lbm.width-0.5], [0.5, lbm.height - 1.5], color="black")
+            # ax.streamplot(np.arange(0, lbm.width), np.arange(0, lbm.height), u_x, u_y, color=np.sqrt(u_x**2 + u_y**2), density=1.5, norm=plt.Normalize(0, lid_velocity))
+            # ax.plot([-0.5, lbm.width - 0.5], [lbm.height-1.5, lbm.height-1.5], color="red", label="Moving wall")
+            # ax.plot([-0.5, lbm.width - 0.5], [0.5, 0.5], color="black", label = "Fixed wall")
+            # # draw vertical boundaries
+            # ax.plot([-0.5, -0.5], [0.5, lbm.height- 1.5], color="black")
+            # ax.plot([lbm.width-0.5, lbm.width-0.5], [0.5, lbm.height - 1.5], color="black")
 
-            # plt.pause(0.1)
-            plt.savefig("SlidingLidResults/Sliding_Lid_Velocity_Streamplot.png")
-            plt.tight_layout()
+            # # plt.pause(0.1)
+            # plt.savefig("SlidingLidResults/Sliding_Lid_Velocity_Streamplot_" + str(i) + ".png")
+            # plt.tight_layout()
 
-        if i%10000 == 0 or i == timesteps-1:# or i in safe_timesteps:
+        if i%10000 == 0 or i == timesteps-1 or i in safe_timesteps:
             print("Timestep " + str(i) + " of " + str(timesteps))
         
             lbm.update_velocity_field()
@@ -83,57 +83,31 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
     # plot velocity field streamplot
     print("Plotting results...")
     
-    fig_velocity_over_time = plt.figure()
-    ax1 = fig_velocity_over_time.add_subplot(111)
-    safe_timesteps = np.linspace(0, timesteps-1, 10, dtype=int)
+    for i, simulated_velocity_field_Cyx in zip(indices, simulated_velocity_field_tCyx):    
+        ax.clear()
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_aspect("equal")
+        ax.set_xlim(-10, lbm.width+10)
+        ax.set_ylim(-10, lbm.height+10)
+        ax.set_title("Velocity streamplot at t = " + str(i))
+        lbm.update_velocity_field()
+        velocity_field = simulated_velocity_field_Cyx
+        velocity_field = np.flip(velocity_field, axis=1)
+        u_x = velocity_field[0]
+        u_y = velocity_field[1]
+        
+        ax.streamplot(np.arange(0, lbm.width), np.arange(0, lbm.height), u_x, u_y, color=np.sqrt(u_x**2 + u_y**2), density=1.5, norm=plt.Normalize(0, lid_velocity))
+        ax.plot([-0.5, lbm.width - 0.5], [lbm.height-1.5, lbm.height-1.5], color="red", label="Moving wall")
+        ax.plot([-0.5, lbm.width - 0.5], [0.5, 0.5], color="black", label = "Fixed wall")
+        # draw vertical boundaries
+        ax.plot([-0.5, -0.5], [0.5, lbm.height- 1.5], color="black")
+        ax.plot([lbm.width-0.5, lbm.width-0.5], [0.5, lbm.height - 1.5], color="black")
 
-    # for i, simulated_velocity_field_Cyx in zip(indices, simulated_velocity_field_tCyx):     
-    #     ax1.set_xlabel("x")
-    #     ax1.set_ylabel("y")
-    #     ax1.set_aspect("equal")
-    #     ax1.set_xlim(-10, lbm.width+10)
-    #     ax1.set_ylim(-10, lbm.height+10)
-    #     ax1.set_title("Velocity streamplot at t = " + str(i))
-    #     ax1.streamplot(np.arange(0, lbm.width), np.arange(0, lbm.height), simulated_velocity_field_Cyx[0], simulated_velocity_field_Cyx[1], color="black", density=1, linewidth=0.5, arrowsize=0.5)
-    #     # draw the boundaries
-    #     ax1.plot([-0.5, lbm.width - 0.5], [lbm.height-1.5, lbm.height-1.5], color="red", label="Moving wall")
-    #     ax1.plot([-0.5, lbm.width - 0.5], [0.5, 0.5], color="black", label = "Fixed wall")
-    #     # draw vertical boundaries
-    #     ax1.plot([-0.5, -0.5], [0.5, lbm.height- 1.5], color="black", linestyle="dashed", label="Periodic boundaries")
-    #     ax1.plot([lbm.width-0.5, lbm.width-0.5], [0.5, lbm.height - 1.5], color="black", linestyle="dashed")
-    #     ax1.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left",
-    #         mode="expand", borderaxespad=0, ncol=3)
-    #     plt.tight_layout()
-    #     if i in safe_timesteps:
-    #         plt.savefig("SlidingLidResults/Sliding_Lid_Velocity_Streamplot_" + str(i) + ".png")
-    #     plt.pause(0.01)
-    #     ax1.clear()
-    ax1.set_xlabel("x")
-    ax1.set_ylabel("y")
-    ax1.set_aspect("equal")
-    ax1.set_xlim(-10, lbm.width+10)
-    ax1.set_ylim(-10, lbm.height+10)
-    ax1.set_title("Velocity streamplot at t = " + str(i))
+        plt.tight_layout()
+        plt.savefig("SlidingLidResults/Sliding_Lid_Velocity_Streamplot_T" + str(i) + "_RE" + str(reynolds_number) + ".png")
+        plt.pause(0.1)
 
-    u_x = simulated_velocity_field_tCyx[-1][0]
-    u_y = simulated_velocity_field_tCyx[-1][1]
-    ax1.streamplot(np.arange(0, lbm.width), np.arange(0, lbm.height), u_x, u_y, color=np.sqrt(u_x**2 + u_y**2), density=1.5, norm=plt.Normalize(0, lid_velocity))
-    # add a colorbar
-    cbar = fig_velocity_over_time.colorbar(ax=ax1, mappable=matplotlib.cm.ScalarMappable(norm=plt.Normalize(0, lid_velocity), cmap="viridis"))
-    cbar.set_label("Velocity magnitude")
-    cbar.set_ticks(np.linspace(0, lid_velocity, 5))
-
-
-    # draw the boundaries
-    ax1.plot([-0.5, lbm.width - 0.5], [lbm.height-1.5, lbm.height-1.5], color="red", label="Moving wall")
-    ax1.plot([-0.5, lbm.width - 0.5], [0.5, 0.5], color="black", label = "Fixed wall")
-    # draw vertical boundaries
-    ax1.plot([-0.5, -0.5], [0.5, lbm.height- 1.5], color="black", linestyle="dashed")
-    ax1.plot([lbm.width-0.5, lbm.width-0.5], [0.5, lbm.height - 1.5], color="black", linestyle="dashed")
-    ax1.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left",
-        mode="expand", borderaxespad=0, ncol=3)
-    plt.tight_layout()
-    plt.savefig("SlidingLidResults/Sliding_Lid_Velocity_Streamplot_Single_" + str(timesteps) + ".png")
     plt.show()
 
 
@@ -141,7 +115,7 @@ if __name__ == "__main__":
 
     grid_size_x = 300
     grid_size_y = 300
-    timesteps = 10000
+    timesteps = 100000
 
     reynolds_number = 1000
     characteristic_length = grid_size_x

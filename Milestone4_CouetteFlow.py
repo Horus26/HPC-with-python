@@ -97,8 +97,8 @@ def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps 
             mode="expand", borderaxespad=0, ncol=3, labelspacing = 1)
         plt.tight_layout()
         if i in safe_timesteps:
-            plt.savefig("CouetteFlowResults/CouetteFlow_VelocityField_t" + str(i) + ".png")
-        plt.pause(0.01)
+            plt.savefig("CouetteFlowResults/CouetteFlow_VelocityField_t{}_y{}_x{}_omega{}.png".format(i, grid_size_y, grid_size_x, omega), bbox_inches='tight')
+        plt.pause(0.001)
         cbar.remove()
         ax1.clear()
         
@@ -114,20 +114,20 @@ def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps 
     ax_vel_profile_Lx2.set_xlim(0, top_boundary_velocity)
     # ax_vel_profile_Lx2.set_aspect("equal")
     y = np.arange(grid_size_y - 1, -1, -1) + 0.5
-    colors = matplotlib.cm.rainbow(np.linspace(0, 1, np.ceil(timesteps/1000).astype(int) + 1))
-    for i, simulated_velocity_field_Cyx in zip(indices, simulated_velocity_field_tCyx):
+    colors = matplotlib.cm.rainbow(np.linspace(0, 1, len(indices) + 1))
+    for step, (i, simulated_velocity_field_Cyx) in enumerate(zip(indices, simulated_velocity_field_tCyx)):
         if (i % 500 == 0 and i > 0) or i == indices[-1] or i in [10, 50, 100]:
-            ax_vel_profile_Lx2.plot(np.array(simulated_velocity_field_Cyx)[0, :, lx2], y, label="t = " + str(i), color=colors[int(i/1000)])
+            ax_vel_profile_Lx2.plot(np.array(simulated_velocity_field_Cyx)[0, :, lx2], y, label="t = " + str(i), color=colors[step])
 
     ax_vel_profile_Lx2.legend(bbox_to_anchor=(1.04, 1), borderaxespad=0)
-    plt.savefig("CouetteFlowResults/CouetteFlow_VelocityProfile_Lx2_over_timesteps.png")
+    plt.savefig("CouetteFlowResults/CouetteFlow_VelocityProfile_Lx2_over_timesteps_t{}_y{}_x{}_omega{}.png".format(timesteps, grid_size_y, grid_size_x, omega), bbox_inches='tight')
     plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
 
-    grid_size_x = 100
+    grid_size_x = 140
     grid_size_y = 100
-    omega = 0.6
+    omega = 1.0
     timesteps = 10000
     couette_flow(grid_size_x, grid_size_y, omega, timesteps)

@@ -26,14 +26,9 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     pressure_difference = 0.001
     inlet_pressure = base_pressure + pressure_difference
     outlet_pressure = base_pressure - pressure_difference
-
-    # outlet_pressure = inlet_pressure
-    # inlet_pressure = 0
-    # outlet_pressure = 0
     
     boundary_conditions = {"bottom": "bounce_back", "top": "bounce_back", "left": "periodic", "right": "periodic"}
     boundary_pressure = {"bottom": None, "top": None, "left": inlet_pressure, "right": outlet_pressure, "output": "right", "input": "left"}
-    # boundary_pressure = None
 
     # initialize LBM
     lbm = LBM(grid_size_x, grid_size_y, omega, boundary_conditions=boundary_conditions, boundary_pressure_info=boundary_pressure)
@@ -42,15 +37,18 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     print("Simulating Poiseuille flow...")
     simulated_velocity_field_tCyx = [lbm.get_velocity_field_Cyx(False)]
     indices = [0]
+    safe_timesteps = np.linspace(1000, timesteps, 10, dtype=int)
+    safe_timesteps = np.append(safe_timesteps, np.arange(100, 1000, 100, dtype=int))
     for i in range(1, timesteps):
         lbm.step()
 
-        if i%100 == 0:# or i in safe_timesteps:
+        if i%100 == 0 or i == timesteps-1 or i in safe_timesteps:
             print("Timestep " + str(i) + " of " + str(timesteps))
-        
-            lbm.update_velocity_field()
-            simulated_velocity_field_tCyx.append(lbm.get_velocity_field_Cyx(False))
-            indices.append(i)
+            
+            if i in safe_timesteps:
+                lbm.update_velocity_field()
+                simulated_velocity_field_tCyx.append(lbm.get_velocity_field_Cyx(False))
+                indices.append(i)
 
     max_velocity = np.max(np.array(simulated_velocity_field_tCyx)[:, 0, :, :])
 
@@ -64,16 +62,15 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     ax_vel_profile_Lx2.set_xlabel("Velocity")
     ax_vel_profile_Lx2.set_ylabel("y")
     # ax_vel_profile_Lx2.set_ylim(0, lbm.height)
-    y = np.arange(lbm.height-2, 0, -1)
-    colors = matplotlib.cm.rainbow(np.linspace(0, 1, np.ceil(timesteps/100).astype(int) + 1))
-    for i, simulated_velocity_field_Cyx in zip(indices, simulated_velocity_field_tCyx):
-        if (i % 100 == 0 or i == indices[-1]):# and i > timesteps/2:
-            ax_vel_profile_Lx2.plot(np.array(simulated_velocity_field_Cyx)[0, 1:-1, lx2], y, label="t = " + str(i), color=colors[int(i/100)])
+    y = np.arange(lbm.height-1, -1, -1)
+    colors = matplotlib.cm.rainbow(np.linspace(0, 1, len(indices) + 1))
+    for step, (i, simulated_velocity_field_Cyx) in enumerate(zip(indices, simulated_velocity_field_tCyx)):
+        ax_vel_profile_Lx2.plot(np.array(simulated_velocity_field_Cyx)[0, :, lx2], y, label="t = " + str(i), color=colors[step])
 
     ax_vel_profile_Lx2.plot(analytical_solution_y, np.arange(1, lbm.height-1), label="Analytical solution", color="black", linestyle="--")
-    ax_vel_profile_Lx2.legend()
+    ax_vel_profile_Lx2.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left", mode="expand", borderaxespad=0, ncol=3, labelspacing = 1)
     plt.tight_layout()
-    plt.savefig("PoiseuilleFlowResults/PoiseuilleFlow_VelocityProfile_Lx2_over_y.png")
+    plt.savefig("PoiseuilleFlowResults/PoiseuilleFlow_VelocityProfile_Lx2_over_y{}_x_{}_T{}_omega{}.png".format(grid_size_y, grid_size_x, timesteps, omega), bbox_inches='tight')
     plt.show()
 
 
@@ -109,8 +106,8 @@ def calc_poiseuille_flow_analytical_solution(pipe_height : int, pipe_length : in
 
 if __name__ == "__main__":
 
-    grid_size_x = 80
-    grid_size_y = 30
-    omega = 0.5
+    grid_size_x = 100
+    grid_size_y = 100
+    omega = 0.3
     timesteps = 10000
     poiseuille_flow(grid_size_x, grid_size_y, omega, timesteps)
