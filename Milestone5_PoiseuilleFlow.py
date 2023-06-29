@@ -111,6 +111,6 @@ if __name__ == "__main__":
 
     grid_size_x = 80
     grid_size_y = 30
-    omega = 1.0
-    timesteps = 1600
+    omega = 0.5
+    timesteps = 10000
     poiseuille_flow(grid_size_x, grid_size_y, omega, timesteps)
