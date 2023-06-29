@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 from PressureBoundary import PressureBoundary
 
 class LBM:
@@ -36,7 +37,8 @@ class LBM:
                  inital_velocity_field_Cyx : np.ndarray = None,
                  boundary_conditions : dict = None,
                  boundary_velocities : dict = None,
-                 boundary_pressure_info : dict = None
+                 boundary_pressure_info : dict = None,
+                 density_extrapolation : bool = False,
                  ) -> None:
         """
         Initialize the LBM simulation.
@@ -67,6 +69,7 @@ class LBM:
         self.c_s_squared = 1/3
         self.width = width
         self.height = height
+        self.density_extrapolation = density_extrapolation
         self.boundary_conditions = boundary_conditions
         self.boundary_pressure_info = boundary_pressure_info
         self.pressure_boundary_instance = None
@@ -179,6 +182,7 @@ class LBM:
         self.velocity_field_Cyx = inital_velocity_field_Cyx
         self.f_eq = np.zeros((9, self.height, self.width))
         self.f_iyx = np.zeros((9, self.height, self.width))
+        self.f_pre_iyx = np.zeros((9, self.height, self.width))
 
         # variables for periodic boundary with pressure gradient
         self.f_input_border_pre_streaming = None
@@ -228,6 +232,8 @@ class LBM:
         elif self.velocity_field_Cyx.shape != (2, height, width):
             raise ValueError("Dimension of velocity field is not correct. Given shape: {}, expected: {}".format(self.velocity_field_Cyx.shape, (2, height, width)))
 
+        self.density_mean = self.density_field_yx.mean()
+
         # modify density field and velocity field grid according to boundary conditions (0 at dry nodes outside of border)
         # padding in format [[top, bottom], [left, right]]
         padding = [(1,1), (1,1)]
@@ -259,6 +265,8 @@ class LBM:
 
         #  Initialize the probability density function with the equilibrium distribution function.
         self.f_iyx = np.array(self.f_eq)
+        # deepcopy
+        self.f_pre_iyx = deepcopy(self.f_iyx)
 
     def update_density_field(self):
         """
@@ -424,122 +432,103 @@ class LBM:
         # Remember that grid has origin in the bottom left corner and numpy origin is in the top left corner.
         # care because numpy origin (top-left) is used here, not cartesian coordinate system
 
-        # bounce back boundary condition, also used in moving wall case
-        if self.boundary_conditions["bottom"] != "periodic":
+
+        # handle basic periodic boundary condition for all boundaries
+        # basic periodic boundary condition without pressure gradient.
+        if self.boundary_conditions["bottom"] == "periodic" and (self.boundary_pressure_info is None or (self.boundary_pressure_info is not None and self.boundary_pressure_info["bottom"] is None)):
+            # explicit handling because layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
+            self.f_iyx[4, 1, :] = self.f_iyx[4, -1, :]
+            self.f_iyx[7, 1, :] = self.f_iyx[7, -1, :]
+            self.f_iyx[8, 1, :] = self.f_iyx[8, -1, :]
+        if self.boundary_conditions["top"] == "periodic" and (self.boundary_pressure_info is None or (self.boundary_pressure_info is not None and self.boundary_pressure_info["top"] is None)):
+            # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
+            self.f_iyx[2, -2, :] = self.f_iyx[2, 0, :]
+            self.f_iyx[5, -2, :] = self.f_iyx[5, 0, :]
+            self.f_iyx[6, -2, :] = self.f_iyx[6, 0, :]
+        if self.boundary_conditions["left"] == "periodic" and (self.boundary_pressure_info is None or (self.boundary_pressure_info is not None and self.boundary_pressure_info["left"] is None)):
+            # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
+            self.f_iyx[3, :, -2] = self.f_iyx[3, :, 0]
+            self.f_iyx[6, :, -2] = self.f_iyx[6, :, 0]
+            self.f_iyx[7, :, -2] = self.f_iyx[7, :, 0]
+        if self.boundary_conditions["right"] == "periodic" and (self.boundary_pressure_info is None or (self.boundary_pressure_info is not None and self.boundary_pressure_info["right"] is None)):
+            # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
+            self.f_iyx[1, :, 1] = self.f_iyx[1, :, -1]
+            self.f_iyx[5, :, 1] = self.f_iyx[5, :, -1]
+            self.f_iyx[8, :, 1] = self.f_iyx[8, :, -1]
+
+
+        # handle bounce back for all boundaries
+        # bounce back boundary condition
+        if self.boundary_conditions["bottom"] == "bounce_back":
             self.f_iyx[self.inverse_direction_indices[4], -2, :] = self.f_iyx[4, -1, :]
             self.f_iyx[self.inverse_direction_indices[7], -2, :] = np.roll(self.f_iyx[7, -1, :], shift=1)
             self.f_iyx[self.inverse_direction_indices[8], -2, :] = np.roll(self.f_iyx[8, -1, :], shift=-1)
             self.f_iyx[4, -1, :] = 0
             self.f_iyx[7, -1, :] = 0
             self.f_iyx[8, -1, :] = 0
-
-        # basic periodic boundary condition.
-        elif self.boundary_pressure_info is None or (self.boundary_pressure_info is not None and self.boundary_pressure_info["bottom"] is None):
-            # explicit handling because layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
-            self.f_iyx[4, 1, :] = self.f_iyx[4, -1, :]
-            self.f_iyx[7, 1, :] = self.f_iyx[7, -1, :]
-            self.f_iyx[8, 1, :] = self.f_iyx[8, -1, :]
-            self.f_iyx[4, -1, :] = 0
-            self.f_iyx[7, -1, :] = 0
-            self.f_iyx[8, -1, :] = 0
-
-        
-        # bounce back boundary condition, also used in moving wall case
-        if self.boundary_conditions["top"] != "periodic":
+        if self.boundary_conditions["top"] == "bounce_back" or self.boundary_conditions["top"] == "moving_wall":
             self.f_iyx[self.inverse_direction_indices[2], 1, :] = self.f_iyx[2, 0, :]
             self.f_iyx[self.inverse_direction_indices[5], 1, :] = np.roll(self.f_iyx[5, 0, :], shift=-1)
             self.f_iyx[self.inverse_direction_indices[6], 1, :] = np.roll(self.f_iyx[6, 0, :], shift=1)
             self.f_iyx[2, 0, :] = 0
             self.f_iyx[5, 0, :] = 0
             self.f_iyx[6, 0, :] = 0
-
-        # basic periodic boundary condition.
-        elif self.boundary_pressure_info is None or (self.boundary_pressure_info is not None and self.boundary_pressure_info["top"] is None):
-            # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
-            self.f_iyx[2, -2, :] = self.f_iyx[2, 0, :]
-            self.f_iyx[5, -2, :] = self.f_iyx[5, 0, :]
-            self.f_iyx[6, -2, :] = self.f_iyx[6, 0, :]
-            self.f_iyx[2, 0, :] = 0
-            self.f_iyx[5, 0, :] = 0
-            self.f_iyx[6, 0, :] = 0
-
-
-
         # bounce back boundary condition, also used in moving wall case
-        if self.boundary_conditions["left"] != "periodic":
+        if self.boundary_conditions["left"] == "bounce_back":
             self.f_iyx[self.inverse_direction_indices[3], :, 1] = self.f_iyx[3, :, 0]
             self.f_iyx[self.inverse_direction_indices[6], :, 1] = np.roll(self.f_iyx[6, :, 0], shift=1)
             self.f_iyx[self.inverse_direction_indices[7], :, 1] = np.roll(self.f_iyx[7, :, 0], shift=-1)
-            self.f_iyx[3, :, 0] = 0
-            self.f_iyx[6, :, 0] = 0
-            self.f_iyx[7, :, 0] = 0
-
-        # basic periodic boundary condition without pressure gradient.
-        elif self.boundary_pressure_info is None or (self.boundary_pressure_info is not None and self.boundary_pressure_info["left"] is None):
-            # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
-            self.f_iyx[3, :, -2] = self.f_iyx[3, :, 0]
-            self.f_iyx[6, :, -2] = self.f_iyx[6, :, 0]
-            self.f_iyx[7, :, -2] = self.f_iyx[7, :, 0]
-            self.f_iyx[3, :, 0] = 0
-            self.f_iyx[6, :, 0] = 0
-            self.f_iyx[7, :, 0] = 0
-
-
         # bounce back boundary condition, also used in moving wall case
-        if self.boundary_conditions["right"] != "periodic":
+        if self.boundary_conditions["right"] == "bounce_back":
             self.f_iyx[self.inverse_direction_indices[1], :, -2] = self.f_iyx[1, :, -1]
             self.f_iyx[self.inverse_direction_indices[5], :, -2] = np.roll(self.f_iyx[5, :, -1], shift=1)
             self.f_iyx[self.inverse_direction_indices[8], :, -2] = np.roll(self.f_iyx[8, :, -1], shift=-1)
-            self.f_iyx[1, :, -1] = 0
-            self.f_iyx[5, :, -1] = 0
-            self.f_iyx[8, :, -1] = 0
 
-        # basic periodic boundary condition.
-        elif self.boundary_pressure_info is None or (self.boundary_pressure_info is not None and self.boundary_pressure_info["right"] is None):
-            # explicit handling because additional boundary layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
-            self.f_iyx[1, :, 1] = self.f_iyx[1, :, -1]
-            self.f_iyx[5, :, 1] = self.f_iyx[5, :, -1]
-            self.f_iyx[8, :, 1] = self.f_iyx[8, :, -1]
-            self.f_iyx[1, :, -1] = 0
-            self.f_iyx[5, :, -1] = 0
-            self.f_iyx[8, :, -1] = 0
-
-        
-        # apply moving wall boundary condition
+        # handle moving wall boundary condition for all boundaries
         # positive velocity direction is to right and up 
+        # density computation for extrapolation from: https://doi.org/10.48550/arXiv.comp-gas/9611001
         if self.boundary_conditions["top"] == "moving_wall":
-            density_top = self.f_iyx[0, 1] + self.f_iyx[1, 1] + self.f_iyx[3, 1] + 2 * (self.f_iyx[2, 1] + self.f_iyx[6, 1] + self.f_iyx[5, 1])
-            self.f_iyx[7, 1, :] += 0.5 * (self.f_iyx[1, 1, :] - self.f_iyx[3, 1, :]) - 0.5 * density_top * self.boundary_velocities["top"]
-            self.f_iyx[8, 1, :] += 0.5 * (self.f_iyx[3, 1, :] - self.f_iyx[1, 1, :]) + 0.5 * density_top * self.boundary_velocities["top"]
+            density_top = None
+            if self.density_extrapolation:
+                density_top = self.f_iyx[0, 1] + self.f_iyx[1, 1] + self.f_iyx[3, 1] + 2 * (self.f_iyx[2, 1] + self.f_iyx[6, 1] + self.f_iyx[5, 1])
+            else:
+                density_top = self.density_mean
+            # self.f_iyx[7, 1, :] += 0.5 * (self.f_iyx[1, 1, :] - self.f_iyx[3, 1, :]) - 0.5 * density_top * self.boundary_velocities["top"]
+            # self.f_iyx[8, 1, :] += 0.5 * (self.f_iyx[3, 1, :] - self.f_iyx[1, 1, :]) + 0.5 * density_top * self.boundary_velocities["top"]           
+            self.f_iyx[7, 1, :] += - 6 * self.lattice_weights_i[self.inverse_direction_indices[7]] * self.boundary_velocities["top"] * density_top * self.lattice_directions_iC[self.inverse_direction_indices[7], 0]
+            self.f_iyx[8, 1, :] += - 6 * self.lattice_weights_i[self.inverse_direction_indices[8]] * self.boundary_velocities["top"] * density_top * self.lattice_directions_iC[self.inverse_direction_indices[8], 0]
 
         if self.boundary_conditions["bottom"] == "moving_wall":
             density_bottom = self.f_iyx[0, -2] + self.f_iyx[1, -2] + self.f_iyx[3, -2] + 2 * (self.f_iyx[4, -2] + self.f_iyx[7, -2] + self.f_iyx[8, -2])
-            self.f_iyx[5, -2, :] += 0.5 * (self.f_iyx[3, -2, :] - self.f_iyx[1, -2, :]) + 0.5 * density_bottom * self.boundary_velocities["bottom"]
-            self.f_iyx[6, -2, :] += 0.5 * (self.f_iyx[1, -2, :] - self.f_iyx[3, -2, :]) - 0.5 * density_bottom * self.boundary_velocities["bottom"]
+            # self.f_iyx[5, -2, :] += 0.5 * (self.f_iyx[3, -2, :] - self.f_iyx[1, -2, :]) + 0.5 * density_bottom * self.boundary_velocities["bottom"]
+            # self.f_iyx[6, -2, :] += 0.5 * (self.f_iyx[1, -2, :] - self.f_iyx[3, -2, :]) - 0.5 * density_bottom * self.boundary_velocities["bottom"]
+            self.f_iyx[5,-2, :] = self.f_pre_iyx[self.inverse_direction_indices[5], -2] - 6 * self.lattice_weights_i[self.inverse_direction_indices[5]] * self.boundary_velocities["bottom"] * density_bottom * self.lattice_directions_iC[self.inverse_direction_indices[5], 0]
+            self.f_iyx[6,-2, :] = self.f_pre_iyx[self.inverse_direction_indices[6], -2] - 6 * self.lattice_weights_i[self.inverse_direction_indices[6]] * self.boundary_velocities["bottom"] * density_bottom * self.lattice_directions_iC[self.inverse_direction_indices[6], 0]
+            self.f_iyx[2, -2, :] = self.f_pre_iyx[self.inverse_direction_indices[2], -2]
 
         if self.boundary_conditions["left"] == "moving_wall":
             density_left = self.f_iyx[0, :, 1] + self.f_iyx[2, :, 1] + self.f_iyx[4, :, 1] + 2 * (self.f_iyx[3, :, 1] + self.f_iyx[7, :, 1] + self.f_iyx[6, :, 1])
-            self.f_iyx[8, :, 1] += 0.5 * (self.f_iyx[2, :, 1] - self.f_iyx[4, :, 1]) - 0.5 * density_left * self.boundary_velocities["left"]
-            self.f_iyx[5, :, 1] += 0.5 * (self.f_iyx[4, :, 1] - self.f_iyx[2, :, 1]) + 0.5 * density_left * self.boundary_velocities["left"]
+            # self.f_iyx[8, :, 1] += 0.5 * (self.f_iyx[2, :, 1] - self.f_iyx[4, :, 1]) - 0.5 * density_left * self.boundary_velocities["left"]
+            # self.f_iyx[5, :, 1] += 0.5 * (self.f_iyx[4, :, 1] - self.f_iyx[2, :, 1]) + 0.5 * density_left * self.boundary_velocities["left"]
+            self.f_iyx[8, :, 1] = self.f_pre_iyx[self.inverse_direction_indices[8], :, 1] - 6 * self.lattice_weights_i[self.inverse_direction_indices[8]] * self.boundary_velocities["left"] * density_left * self.lattice_directions_iC[self.inverse_direction_indices[8], 1]
+            self.f_iyx[5, :, 1] = self.f_pre_iyx[self.inverse_direction_indices[5], :, 1] - 6 * self.lattice_weights_i[self.inverse_direction_indices[5]] * self.boundary_velocities["left"] * density_left * self.lattice_directions_iC[self.inverse_direction_indices[5], 1]
+            self.f_iyx[1, :, 1] = self.f_pre_iyx[self.inverse_direction_indices[1], :, 1]
 
         if self.boundary_conditions["right"] == "moving_wall":
             density_right = self.f_iyx[0, :, -2] + self.f_iyx[2, :, -2] + self.f_iyx[4, :, -2] + 2 * (self.f_iyx[1, :, -2] + self.f_iyx[5, :, -2] + self.f_iyx[8, :, -2])
-            self.f_iyx[3, :, -2] += 0.5 * (self.f_iyx[4, :, -2] - self.f_iyx[2, :, -2]) + 0.5 * density_right * self.boundary_velocities["right"]
-            self.f_iyx[7, :, -2] += 0.5 * (self.f_iyx[2, :, -2] - self.f_iyx[4, :, -2]) - 0.5 * density_right * self.boundary_velocities["right"]
+            # self.f_iyx[3, :, -2] += 0.5 * (self.f_iyx[4, :, -2] - self.f_iyx[2, :, -2]) + 0.5 * density_right * self.boundary_velocities["right"]
+            # self.f_iyx[7, :, -2] += 0.5 * (self.f_iyx[2, :, -2] - self.f_iyx[4, :, -2]) - 0.5 * density_right * self.boundary_velocities["right"]
+            self.f_iyx[3, :, -2] = self.f_pre_iyx[self.inverse_direction_indices[3], :, -2] - 6 * self.lattice_weights_i[self.inverse_direction_indices[3]] * self.boundary_velocities["right"] * density_right * self.lattice_directions_iC[self.inverse_direction_indices[3], 1]
+            self.f_iyx[7, :, -2] = self.f_pre_iyx[self.inverse_direction_indices[7], :, -2] - 6 * self.lattice_weights_i[self.inverse_direction_indices[7]] * self.boundary_velocities["right"] * density_right * self.lattice_directions_iC[self.inverse_direction_indices[7], 1]
+            self.f_iyx[6, :, -2] = self.f_pre_iyx[self.inverse_direction_indices[6], :, -2]
 
-        # # apply pressure boundary condition
-        # if self.boundary_pressure_info is not None:
-        #     # print("Input border update channels: {}".format(self.pressure_boundary_instance.input_border_update_channels))
-        #     for i in self.pressure_boundary_instance.input_border_update_channels:
-        #         self.f_iyx[i, :, self.pressure_boundary_instance.input_border_index] = self.f_input_border_pre_streaming[i, :]
-        #     for i in self.pressure_boundary_instance.output_border_update_channels:
-        #         self.f_iyx[i, :, self.pressure_boundary_instance.output_border_index] = self.f_output_border_pre_streaming[i, :]
 
-        # set all boundary nodes to zero (check if needed)
-        # self.f_iyx[:, 0, :] = 0
-        # self.f_iyx[:, -1, :] = 0
-        # self.f_iyx[:, :, 0] = 0
-        # self.f_iyx[:, :, -1] = 0
+
+        # set all boundary nodes to zero
+        self.f_iyx[:, 0, :] = 0
+        self.f_iyx[:, -1, :] = 0
+        self.f_iyx[:, :, 0] = 0
+        self.f_iyx[:, :, -1] = 0
 
 
     def streaming(self):
@@ -565,7 +554,9 @@ class LBM:
         """
         One step of the LBM.
         """
+        self.update_velocity_field()
         self.boundary_handling_before_streaming()
+        self.f_pre_iyx = deepcopy(self.f_iyx)
         self.streaming()
         self.boundary_handling_after_streaming()
         self.collision()

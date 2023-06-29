@@ -5,7 +5,7 @@ from LBM import LBM
 
 def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps : int):
     """
-    Simulate Poisuille flow.
+    Simulate Poiseuille flow.
 
     Parameters
     ----------
