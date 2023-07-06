@@ -46,7 +46,7 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
         if i%100 == 0 or i == timesteps-1 or i in safe_timesteps:
             print("Timestep " + str(i) + " of " + str(timesteps))
             
-            if i in safe_timesteps:
+            if i in safe_timesteps or i == timesteps-1:
                 lbm.update_velocity_field()
                 simulated_velocity_field_tCyx.append(lbm.get_velocity_field_Cyx(False))
                 indices.append(i)
@@ -157,19 +157,31 @@ def calc_poiseuille_flow_analytical_solution(pipe_height : int, pipe_length : in
         The analytical solution for the velocity profile.
     """
     dynamic_viscosity = viscosity * density
-    pressure_difference = outlet_pressure - inlet_pressure
+    pressure_difference = inlet_pressure - outlet_pressure
     derivative = pressure_difference / pipe_length
 
     y = np.arange(pipe_height)
-    analytical_solution = 0.5 * (1/dynamic_viscosity) * derivative * y * (y - (pipe_height - 1))
+    analytical_solution = -0.5 * (1/dynamic_viscosity) * derivative * y * (y - (pipe_height - 1))
     return analytical_solution
 
 
 
 if __name__ == "__main__":
 
-    grid_size_x = 100
-    grid_size_y = 100
-    omega = 0.5
-    timesteps = 30000
+    grid_size_x = 140
+    grid_size_y = 60
+    omega = 1.0
+    timesteps = 50000
     poiseuille_flow(grid_size_x, grid_size_y, omega, timesteps)
+
+    # omega = 0.5
+    # Area of velocity profile at inlet: 4.348060543646651
+    # Area of velocity profile at middle of pipe: 4.36062289522719
+
+    # omega = 1.0
+    # Area of velocity profile at inlet: 1.5177770821469532
+    # Area of velocity profile at middle of pipe: 1.5222781742711273
+
+    # omega = 1.5
+    # Area of velocity profile at inlet: 0.511146472112152
+    # Area of velocity profile at middle of pipe: 0.5126680197639538

@@ -39,6 +39,7 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
     # matplotlib.use("Qt5Agg")
 
     safe_timesteps = [1, 10, 50, 100, 500]
+    safe_timesteps = np.append(safe_timesteps, np.arange(500, 10001, 500, dtype=int))
     fig_velocity_animation = plt.figure()
     ax = fig_velocity_animation.add_subplot(111)
     cbar = fig_velocity_animation.colorbar(ax=ax, mappable=matplotlib.cm.ScalarMappable(norm=plt.Normalize(0, lid_velocity), cmap="viridis"))
