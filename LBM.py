@@ -487,8 +487,6 @@ class LBM:
                 density_top = self.f_iyx[0, 1] + self.f_iyx[1, 1] + self.f_iyx[3, 1] + 2 * (self.f_iyx[2, 1] + self.f_iyx[6, 1] + self.f_iyx[5, 1])
             else:
                 density_top = self.density_mean
-            # self.f_iyx[7, 1, :] += 0.5 * (self.f_iyx[1, 1, :] - self.f_iyx[3, 1, :]) - 0.5 * density_top * self.boundary_velocities["top"]
-            # self.f_iyx[8, 1, :] += 0.5 * (self.f_iyx[3, 1, :] - self.f_iyx[1, 1, :]) + 0.5 * density_top * self.boundary_velocities["top"]           
             self.f_iyx[7, 1, :] = self.f_pre_iyx[self.inverse_direction_indices[7], 1] -  6 * self.lattice_weights_i[self.inverse_direction_indices[7]] * self.boundary_velocities["top"] * density_top * self.lattice_directions_iC[self.inverse_direction_indices[7], 0]
             self.f_iyx[8, 1, :] = self.f_pre_iyx[self.inverse_direction_indices[8], 1] - 6 * self.lattice_weights_i[self.inverse_direction_indices[8]] * self.boundary_velocities["top"] * density_top * self.lattice_directions_iC[self.inverse_direction_indices[8], 0]
 
@@ -498,8 +496,6 @@ class LBM:
                 density_bottom = self.f_iyx[0, -2] + self.f_iyx[1, -2] + self.f_iyx[3, -2] + 2 * (self.f_iyx[4, -2] + self.f_iyx[7, -2] + self.f_iyx[8, -2])
             else:
                 density_bottom = self.density_mean
-            # self.f_iyx[5, -2, :] += 0.5 * (self.f_iyx[3, -2, :] - self.f_iyx[1, -2, :]) + 0.5 * density_bottom * self.boundary_velocities["bottom"]
-            # self.f_iyx[6, -2, :] += 0.5 * (self.f_iyx[1, -2, :] - self.f_iyx[3, -2, :]) - 0.5 * density_bottom * self.boundary_velocities["bottom"]
             self.f_iyx[5,-2, :] = self.f_pre_iyx[self.inverse_direction_indices[5], -2] - 6 * self.lattice_weights_i[self.inverse_direction_indices[5]] * self.boundary_velocities["bottom"] * density_bottom * self.lattice_directions_iC[self.inverse_direction_indices[5], 0]
             self.f_iyx[6,-2, :] = self.f_pre_iyx[self.inverse_direction_indices[6], -2] - 6 * self.lattice_weights_i[self.inverse_direction_indices[6]] * self.boundary_velocities["bottom"] * density_bottom * self.lattice_directions_iC[self.inverse_direction_indices[6], 0]
 
@@ -509,9 +505,6 @@ class LBM:
                 density_left = self.f_iyx[0, :, 1] + self.f_iyx[2, :, 1] + self.f_iyx[4, :, 1] + 2 * (self.f_iyx[3, :, 1] + self.f_iyx[7, :, 1] + self.f_iyx[6, :, 1])
             else:
                 density_left = self.density_mean
-            
-            # self.f_iyx[8, :, 1] += 0.5 * (self.f_iyx[2, :, 1] - self.f_iyx[4, :, 1]) - 0.5 * density_left * self.boundary_velocities["left"]
-            # self.f_iyx[5, :, 1] += 0.5 * (self.f_iyx[4, :, 1] - self.f_iyx[2, :, 1]) + 0.5 * density_left * self.boundary_velocities["left"]
             self.f_iyx[8, :, 1] = self.f_pre_iyx[self.inverse_direction_indices[8], :, 1] - 6 * self.lattice_weights_i[self.inverse_direction_indices[8]] * self.boundary_velocities["left"] * density_left * self.lattice_directions_iC[self.inverse_direction_indices[8], 1]
             self.f_iyx[5, :, 1] = self.f_pre_iyx[self.inverse_direction_indices[5], :, 1] - 6 * self.lattice_weights_i[self.inverse_direction_indices[5]] * self.boundary_velocities["left"] * density_left * self.lattice_directions_iC[self.inverse_direction_indices[5], 1]
 
@@ -521,9 +514,6 @@ class LBM:
                 density_right = self.f_iyx[0, :, -2] + self.f_iyx[2, :, -2] + self.f_iyx[4, :, -2] + 2 * (self.f_iyx[1, :, -2] + self.f_iyx[5, :, -2] + self.f_iyx[8, :, -2])
             else:
                 density_right = self.density_mean
-            
-            # self.f_iyx[3, :, -2] += 0.5 * (self.f_iyx[4, :, -2] - self.f_iyx[2, :, -2]) + 0.5 * density_right * self.boundary_velocities["right"]
-            # self.f_iyx[7, :, -2] += 0.5 * (self.f_iyx[2, :, -2] - self.f_iyx[4, :, -2]) - 0.5 * density_right * self.boundary_velocities["right"]
             self.f_iyx[3, :, -2] = self.f_pre_iyx[self.inverse_direction_indices[3], :, -2] - 6 * self.lattice_weights_i[self.inverse_direction_indices[3]] * self.boundary_velocities["right"] * density_right * self.lattice_directions_iC[self.inverse_direction_indices[3], 1]
             self.f_iyx[7, :, -2] = self.f_pre_iyx[self.inverse_direction_indices[7], :, -2] - 6 * self.lattice_weights_i[self.inverse_direction_indices[7]] * self.boundary_velocities["right"] * density_right * self.lattice_directions_iC[self.inverse_direction_indices[7], 1]
 

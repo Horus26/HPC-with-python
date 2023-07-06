@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 from LBM import LBM
 
-def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps : int, lid_velocity : float):
+def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps : int, lid_velocity : float, save_figures : bool):
     """
     Simulate Sliding Lid.
 
@@ -17,6 +17,10 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
         The relaxation parameter.
     timesteps : int
         The number of timesteps to simulate.
+    lid_velocity : float
+        The velocity of the lid.
+    save_figures : bool
+        Whether to save the figures or not.
 
     Returns
     -------
@@ -79,7 +83,7 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
         
             lbm.update_velocity_field()
             simulated_velocity_field_tCyx.append(lbm.get_velocity_field_Cyx(False))
-            indices.append(i)
+            indices.append(i)    
 
     # plot velocity field streamplot
     print("Plotting results...")
@@ -106,11 +110,11 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
         ax.plot([lbm.width-0.5, lbm.width-0.5], [0.5, lbm.height - 1.5], color="black")
 
         plt.tight_layout()
-        plt.savefig("SlidingLidResults/Sliding_Lid_Velocity_Streamplot_T" + str(i) + "_RE" + str(reynolds_number) + ".png")
+        if save_figures:
+            plt.savefig("SlidingLidResults/Sliding_Lid_Velocity_Streamplot_T" + str(i) + "_RE" + str(reynolds_number) + ".png")
         plt.pause(0.1)
 
     plt.show()
-
 
 
 if __name__ == "__main__":
@@ -125,13 +129,12 @@ if __name__ == "__main__":
     kinematic_viscosity = characteristic_length * characteristic_velocity / reynolds_number
     omega = 1.0 / (3 * kinematic_viscosity + 0.5)
 
+    save_figures = True
     print("Kinematic viscosity = " + str(kinematic_viscosity))
     print("omega = " + str(omega))
 
-    sliding_lid(grid_size_x, grid_size_y, omega, timesteps, characteristic_velocity)
+    sliding_lid(grid_size_x, grid_size_y, omega, timesteps, characteristic_velocity, save_figures)
 
-
-    # use double precision
     # 300 x 300 --> linear up to 100 cpus, ca. then saturates
     # omega 1,7 , U_x=0.1 (when using smaller omega, make L larger)
     # --> kinematic viscosity = 1/34
@@ -145,7 +148,7 @@ if __name__ == "__main__":
     # each node has 40 processors
     # partition is job queue (multiple is standard, dev_multiple is developer queue for testing)
 
-    # load modules
+    # load modules example
     # module load compiler/intel/2021.2.0
     # module load mpi/impi/2021.2.0
     # module load numlib/mkl/2021.2.0
