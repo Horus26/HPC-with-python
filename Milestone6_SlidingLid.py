@@ -111,6 +111,7 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
     plt.show()
 
 
+
 if __name__ == "__main__":
 
     grid_size_x = 300
@@ -127,3 +128,31 @@ if __name__ == "__main__":
     print("omega = " + str(omega))
 
     sliding_lid(grid_size_x, grid_size_y, omega, timesteps, characteristic_velocity)
+
+
+    # use double precision
+    # 300 x 300 --> linear up to 100 cpus, ca. then saturates
+    # omega 1,7 , U_x=0.1 (when using smaller omega, make L larger)
+    # --> kinematic viscosity = 1/34
+    # --> Reynolds number ca. 1000
+
+    # bwunicluster
+    # 1. ask for processes and memory
+
+
+    #sbatch --> ask for resources
+    # each node has 40 processors
+    # partition is job queue (multiple is standard, dev_multiple is developer queue for testing)
+
+    # load modules
+    # module load compiler/intel/2021.2.0
+    # module load mpi/impi/2021.2.0
+    # module load numlib/mkl/2021.2.0
+    # like this
+    # mpirun -n 160 python3 SlidingLid.py
+
+    # use python3
+    # python3 -m pip pip install mpi4py --user
+    # if something is missing install in local environment
+
+    # ${SLURM_NTASKS} --> total number of processes (= nodes * ntasks-per-node)

@@ -433,7 +433,7 @@ class LBM:
         # care because numpy origin (top-left) is used here, not cartesian coordinate system
 
 
-        # handle basic periodic boundary condition for all boundaries
+        # handle basic periodic boundary condition for all boundaries. This is handled in the parallel case by the communication
         # basic periodic boundary condition without pressure gradient.
         if self.boundary_conditions["bottom"] == "periodic" and (self.boundary_pressure_info is None or (self.boundary_pressure_info is not None and self.boundary_pressure_info["bottom"] is None)):
             # explicit handling because layer of nodes around grid is also filled by periodic boundary condition and needs to be handled
@@ -463,16 +463,10 @@ class LBM:
             self.f_iyx[self.inverse_direction_indices[4], -2, :] = self.f_iyx[4, -1, :]
             self.f_iyx[self.inverse_direction_indices[7], -2, :] = np.roll(self.f_iyx[7, -1, :], shift=1)
             self.f_iyx[self.inverse_direction_indices[8], -2, :] = np.roll(self.f_iyx[8, -1, :], shift=-1)
-            # self.f_iyx[4, -1, :] = 0
-            # self.f_iyx[7, -1, :] = 0
-            # self.f_iyx[8, -1, :] = 0
         if self.boundary_conditions["top"] == "bounce_back" or self.boundary_conditions["top"] == "moving_wall":
             self.f_iyx[self.inverse_direction_indices[2], 1, :] = self.f_iyx[2, 0, :]
             self.f_iyx[self.inverse_direction_indices[5], 1, :] = np.roll(self.f_iyx[5, 0, :], shift=-1)
             self.f_iyx[self.inverse_direction_indices[6], 1, :] = np.roll(self.f_iyx[6, 0, :], shift=1)
-            # self.f_iyx[2, 0, :] = 0
-            # self.f_iyx[5, 0, :] = 0
-            # self.f_iyx[6, 0, :] = 0
         # bounce back boundary condition, also used in moving wall case
         if self.boundary_conditions["left"] == "bounce_back" or self.boundary_conditions["left"] == "moving_wall":
             self.f_iyx[self.inverse_direction_indices[3], :, 1] = self.f_iyx[3, :, 0]
@@ -506,7 +500,6 @@ class LBM:
                 density_bottom = self.density_mean
             # self.f_iyx[5, -2, :] += 0.5 * (self.f_iyx[3, -2, :] - self.f_iyx[1, -2, :]) + 0.5 * density_bottom * self.boundary_velocities["bottom"]
             # self.f_iyx[6, -2, :] += 0.5 * (self.f_iyx[1, -2, :] - self.f_iyx[3, -2, :]) - 0.5 * density_bottom * self.boundary_velocities["bottom"]
-            # TODO: CHECK IF PRE STREAMING NEEDS TO BE USED HERE
             self.f_iyx[5,-2, :] = self.f_pre_iyx[self.inverse_direction_indices[5], -2] - 6 * self.lattice_weights_i[self.inverse_direction_indices[5]] * self.boundary_velocities["bottom"] * density_bottom * self.lattice_directions_iC[self.inverse_direction_indices[5], 0]
             self.f_iyx[6,-2, :] = self.f_pre_iyx[self.inverse_direction_indices[6], -2] - 6 * self.lattice_weights_i[self.inverse_direction_indices[6]] * self.boundary_velocities["bottom"] * density_bottom * self.lattice_directions_iC[self.inverse_direction_indices[6], 0]
 
