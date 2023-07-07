@@ -92,10 +92,10 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     u_x = steady_state_velocity_field_Cyx[0][1:-1, 1:-1]
     u_y = steady_state_velocity_field_Cyx[1][1:-1, 1:-1]
     ax_velocity_vectors.streamplot(np.arange(1, lbm.width-1), np.arange(1, lbm.height-1), u_x, u_y, color=np.sqrt(u_x**2 + u_y**2), density=1.2, norm=plt.Normalize(0, max_velocity))
-    ax_velocity_vectors.plot([-0.5, lbm.width - 0.5], [lbm.height-1.5, lbm.height-1.5], color="red", label="Moving wall")
+    ax_velocity_vectors.plot([-0.5, lbm.width - 0.5], [lbm.height-1.5, lbm.height-1.5], color="black")
     ax_velocity_vectors.plot([-0.5, lbm.width - 0.5], [0.5, 0.5], color="black", label = "Fixed wall")
     # draw vertical boundaries
-    ax_velocity_vectors.plot([-0.5, -0.5], [0.5, lbm.height- 1.5], color="black", label="Periodic", linestyle="dashed")
+    ax_velocity_vectors.plot([-0.5, -0.5], [0.5, lbm.height- 1.5], color="black", label="Periodic pressure gradient", linestyle="dashed")
     ax_velocity_vectors.plot([lbm.width-0.5, lbm.width-0.5], [0.5, lbm.height - 1.5], color="black", linestyle="dashed")
     # cbar
     cbar = fig_velocity_vectors.colorbar(ax=ax_velocity_vectors, mappable=matplotlib.cm.ScalarMappable(norm=plt.Normalize(0, max_velocity), cmap="viridis"))
@@ -170,8 +170,8 @@ if __name__ == "__main__":
 
     grid_size_x = 140
     grid_size_y = 60
-    omega = 1.0
-    timesteps = 50000
+    omega = 0.5
+    timesteps = 20000
     poiseuille_flow(grid_size_x, grid_size_y, omega, timesteps)
 
     # omega = 0.5
