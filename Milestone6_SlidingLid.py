@@ -83,11 +83,16 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
         
             lbm.update_velocity_field()
             simulated_velocity_field_tCyx.append(lbm.get_velocity_field_Cyx(False))
-            indices.append(i)    
+            indices.append(i)
+
+    # store last velocity field
+    np.save("SlidingLidResults/Sliding_Lid_Velocity_Field_RE" + str(reynolds_number) + ".npy", simulated_velocity_field_tCyx[-1])
 
     # plot velocity field streamplot
     print("Plotting results...")
-    
+
+    return
+
     for i, simulated_velocity_field_Cyx in zip(indices, simulated_velocity_field_tCyx):    
         ax.clear()
         ax.set_xlabel("x")
@@ -96,7 +101,7 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
         ax.set_xlim(-10, lbm.width+10)
         ax.set_ylim(-10, lbm.height+10)
         ax.set_title("Velocity streamplot at t = " + str(i))
-        lbm.update_velocity_field()
+        # lbm.update_velocity_field()
         velocity_field = simulated_velocity_field_Cyx
         velocity_field = np.flip(velocity_field, axis=1)
         u_x = velocity_field[0]
@@ -134,6 +139,17 @@ if __name__ == "__main__":
     print("omega = " + str(omega))
 
     sliding_lid(grid_size_x, grid_size_y, omega, timesteps, characteristic_velocity, save_figures)
+
+    # # load numpy results
+    # simulated_velocity_field_tCyx = np.load("SlidingLidResults/Sliding_Lid_Velocity_Field_RE1000.npy")
+    # # remove boundary
+    # simulated_velocity_field_tCyx = simulated_velocity_field_tCyx[:, 1:-1, 1:-1]
+    # # load parallel result
+    # simulated_velocity_field_tCyx_parallel = np.load("SlidingLidResults/PARALLEL_Sliding_Lid_Velocity_Field_T_100000_RE_1000_FULL.npy")
+
+    # # calculate difference
+    # difference = np.abs(simulated_velocity_field_tCyx - simulated_velocity_field_tCyx_parallel)
+    # print("Maximum difference: " + str(np.max(difference)))
 
     # 300 x 300 --> linear up to 100 cpus, ca. then saturates
     # omega 1,7 , U_x=0.1 (when using smaller omega, make L larger)

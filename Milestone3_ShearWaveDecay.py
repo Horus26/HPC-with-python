@@ -94,7 +94,13 @@ def density_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : float
     initial_density_yx = np.tile(initial_density_row, (grid_size_y,1))
 
     # initialize LBM
-    lbm = LBM(grid_size_x, grid_size_y, omega, inital_density_field_yx=initial_density_yx)
+    boundary_conditions = {
+        "bottom" : "periodic",
+        "top" : "periodic",
+        "left" : "periodic",
+        "right" : "periodic"
+    }
+    lbm = LBM(grid_size_x, grid_size_y, omega, inital_density_field_yx=initial_density_yx, boundary_conditions=boundary_conditions)
 
     analytical_viscositity = lbm.viscosity
     simulated_density_field_tyx = []
@@ -189,8 +195,14 @@ def velocity_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : floa
     initial_density_yx =  np.ones((grid_size_y, grid_size_x)) * rho0
     initial_average_velocity_Cyx = np.einsum("yx, C -> Cyx", initial_average_velocity_yx, np.array([1,0]))
 
+    boundary_conditions = {
+        "bottom" : "periodic",
+        "top" : "periodic",
+        "left" : "periodic",
+        "right" : "periodic"
+    }
     # initialize LBM
-    lbm = LBM(grid_size_x, grid_size_y, omega, inital_density_field_yx=initial_density_yx, inital_velocity_field_Cyx=initial_average_velocity_Cyx)
+    lbm = LBM(grid_size_x, grid_size_y, omega, inital_density_field_yx=initial_density_yx, inital_velocity_field_Cyx=initial_average_velocity_Cyx, boundary_conditions=boundary_conditions)
 
     analytical_viscositity = lbm.viscosity
     simulated_velocity_field_tyx = []

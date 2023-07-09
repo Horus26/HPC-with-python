@@ -83,15 +83,8 @@ class LBM:
                 "right" : 0.0
             }
 
-        # prepare valid boundary conditions and its implications on the grid size
-        if self.boundary_conditions is None:
-            self.boundary_conditions = {
-                "bottom" : "periodic",
-                "top" : "periodic",
-                "left" : "periodic",
-                "right" : "periodic"
-            }
-        else:
+        # prepare valid boundary conditions
+        if self.boundary_conditions is not None:
             # check if boundary conditions are valid           
             if self.boundary_conditions["bottom"] == "periodic" and self.boundary_conditions["top"] != "periodic":
                 raise ValueError("Bottom boundary condition is periodic but top boundary condition is not. This is not possible.")
