@@ -106,23 +106,38 @@ def run_lbm_parallel(NX, NY, lbm_parameter, timesteps=100000):
     print('NX = {} NY = {}, and sqrt(NX*NY) = {}'.format(NX,NY,np.sqrt(NX*NY)))
     print('NX/NY = {} and NY/NX = {}\n'.format(NX/NY,NY/NX))
     #
-    if NX < NY:
-        factor_sectY_larger = int(NY/NX)
-        size_Y_share = factor_sectY_larger / (1+factor_sectY_larger)
-        sectsY = int(np.floor(size*size_Y_share))
-        sectsX = int(np.floor(size/sectsY))
 
-        if sectsX == 1:
-            sectsY += 1
+    sectsY = None
+    sectsX = None
+    if NX < NY:
+        factor_sectY_larger = np.floornt(NY/NX)
+
+        if factor_sectY_larger == 1:
+            sectsY = size
+            sectsX = 1
+
+        else:
+            size_Y_share = factor_sectY_larger / (1+factor_sectY_larger)
+            sectsY = int(np.floor(size*size_Y_share))
+            sectsX = int(np.floor(size/sectsY))
+
+            if sectsX == 1:
+                sectsY += 1
 
     elif NX > NY:
-        factor_sectX_larger = int(NX/NY)
-        size_X_share = factor_sectX_larger / (1+factor_sectX_larger)
-        sectsX = int(np.floor(size*size_X_share))
-        sectsY = int(np.floor(size/sectsX))
+        factor_sectX_larger = np.floor(NX/NY)
 
-        if sectsY == 1:
-            sectsX += 1
+        if factor_sectX_larger == 1:
+            sectsX = size
+            sectsY = 1
+        
+        else:
+            size_X_share = factor_sectX_larger / (1+factor_sectX_larger)
+            sectsX = int(np.floor(size*size_X_share))
+            sectsY = int(np.floor(size/sectsX))
+
+            if sectsY == 1:
+                sectsX += 1
 
 
     elif NX==NY:
@@ -228,8 +243,21 @@ def run_lbm_parallel(NX, NY, lbm_parameter, timesteps=100000):
 
     # gather all data and plot last velocity field
     lbm.update_velocity_field()
-    allDestSourBuf = comm.gather(lbm.get_velocity_field_Cyx(True).flatten(), root=0)
-    allDestSourBuf = np.array(allDestSourBuf)
+    velocity_field_size = lbm.velocity_field_Cyx.shape
+    velocity_field_size_x = velocity_field_size[2] - 2
+    velocity_field_size_y = velocity_field_size[1] - 2
+    print("velocity_field_size x: {}, y: {}".format(velocity_field_size_x, velocity_field_size_y))
+    local_velocity_field_size_x = np.array(comm.gather(velocity_field_size_x, root=0))
+    local_velocity_field_size_y = np.array(comm.gather(velocity_field_size_y, root=0))
+    local_velocity_field_size_full = None
+
+    recvbuf = None
+    if rank == 0:
+        local_velocity_field_size_full = 2 * local_velocity_field_size_x * local_velocity_field_size_y
+        recvbuf = np.zeros(np.sum(local_velocity_field_size_full))
+
+    comm.Gatherv(lbm.get_velocity_field_Cyx(True).flatten(), recvbuf=(recvbuf, local_velocity_field_size_full), root=0)
+    allDestSourBuf = np.array(recvbuf)
 
     # simulated_velocity_field_Cyx = lbm.get_velocity_field_Cyx(True)
     # print("Plotting...")
@@ -239,24 +267,41 @@ def run_lbm_parallel(NX, NY, lbm_parameter, timesteps=100000):
     # store velocity field data
     # np.save("SlidingLidResults/PARALLEL_Sliding_Lid_Velocity_Field_T_{}_RE_{}_RANK_{}.npy".format(timesteps, reynolds_number, rank), simulated_velocity_field_Cyx)
 
-    # merge single velocity fields to one big velocity field
-    simulated_velocity_field_Cyx = np.zeros((2, (lbm.height-2)*sectsY, (lbm.width-2)*sectsX))
     if rank == 0:
+        # merge single velocity fields to one big velocity field
+        final_velocity_field_size_x = np.sum(local_velocity_field_size_x)
+        final_velocity_field_size_y = np.sum(local_velocity_field_size_y)
+        if sectsX == 1:
+            final_velocity_field_size_x = velocity_field_size_x
+        if sectsY == 1:
+            final_velocity_field_size_y = velocity_field_size_y
+
+        simulated_velocity_field_Cyx = np.zeros((2, final_velocity_field_size_y, final_velocity_field_size_x))
+    
         # go row-wise through processes and put them into simulated_velocity_field_Cyx
+        current_rank = 0
+        last_end_index = 0
+        print("ALLDESTSOURBUF shape: {}".format(allDestSourBuf.shape))
+        print("Local velocity field size full shape: {}".format(local_velocity_field_size_full.shape))
         for j in np.arange(sectsY):
             for i in np.arange(sectsX):
                 # multiply with 2 because we have 2 velocity channels
-                grid_length = 2*(lbm.height-2)*(lbm.width-2)
-                start_index = j*sectsX*grid_length + i*grid_length
-                end_index = start_index + grid_length
+                grid_length = local_velocity_field_size_full[current_rank]
+                rank_velocity_field_height = local_velocity_field_size_y[current_rank]
+                rank_velocity_field_width = local_velocity_field_size_x[current_rank]
+                start_index = last_end_index
+                end_index = last_end_index + grid_length
                 print("start_index: {}, end_index: {}".format(start_index, end_index))
-                velocity_field_part_data = allDestSourBuf[i+j*sectsX]
+                # velocity_field_part_data = allDestSourBuf[i+j*sectsX]
+                velocity_field_part_data = allDestSourBuf[start_index:end_index]
                 print("allDestSourBuf.shape: {}".format(allDestSourBuf.shape))
                 print("velocity_field_part_data.shape: {}".format(velocity_field_part_data.shape))
-                velocity_field_Cyx = velocity_field_part_data.reshape((2, lbm.height-2, lbm.width-2))
+                velocity_field_Cyx = velocity_field_part_data.reshape((2, rank_velocity_field_height, rank_velocity_field_width))
 
-                simulated_velocity_field_Cyx[:, j*(lbm.height-2):(j+1)*(lbm.height-2), i*(lbm.width-2):(i+1)*(lbm.width-2)] = velocity_field_Cyx
-        
+                
+                simulated_velocity_field_Cyx[:, j*rank_velocity_field_height:(j+1)*rank_velocity_field_height, i*rank_velocity_field_width:(i+1)*rank_velocity_field_width] = velocity_field_Cyx
+                last_end_index = end_index
+                current_rank += 1
         print("Plotting...")
         plot_name = "SlidingLidResults/PARALLEL_Sliding_Lid_Velocity_Streamplot_T_{}_RE_{}_FULL.png".format(timesteps, reynolds_number)
         plot_velocity_field(simulated_velocity_field_Cyx, plot_name, timesteps-1, characteristic_velocity)
