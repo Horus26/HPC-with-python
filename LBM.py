@@ -373,7 +373,7 @@ class LBM:
             # print("Velocity nan column index: {}".format(np.where(np.isnan(self.velocity_field_Cyx))[2]))
             # print("Velocity nan column: {}".format(self.velocity_field_Cyx[:, :, np.where(np.isnan(self.velocity_field_Cyx))[2]]))
             # print("Max density: {}".format(np.max(np.abs(self.density_field_yx))))
-            raise ValueError("Velocity field contains nan values.")
+            raise ValueError("Simulation unstable. Velocity field contains nan values. Use different inital parameters.")
 
         # update equilibrium distribution
         self.f_eq_iyx = np.einsum('i, yx->iyx', self.lattice_weights_i, self.density_field_yx) * (1 + 3 * uc_iyx + 4.5 * uc_iyx**2 - 1.5 * u_norm_squared_yx)

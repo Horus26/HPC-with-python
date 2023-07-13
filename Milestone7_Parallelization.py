@@ -29,7 +29,6 @@ def communicate(lbm : LBM, cartcomm, sd):
     boundary_conditions = lbm.boundary_conditions
 
     # send and receive right
-    # print("CASE RIGHT: RANK {} SENDS TO {} AND RECEIVES FROM {}".format(rank, dR, sR))
     # get relevant channels of f_iyx and flatten them
     i1 = f_iyx[1, :, -2].copy()
     i5 = f_iyx[5, :, -2].copy()
@@ -42,8 +41,6 @@ def communicate(lbm : LBM, cartcomm, sd):
         f_iyx[1, :, 0] = recvbuf[:nysub_with_b].copy()
         f_iyx[5, :, 0] = recvbuf[nysub_with_b:2*nysub_with_b].copy()
         f_iyx[8, :, 0] = recvbuf[2*nysub_with_b:].copy()
-    # elif rank == 0:
-        # print(recvbuf[:nysub_with_b])
 
     # send and receive left
     # get relevant channels of f_iyx and flatten them
@@ -89,70 +86,9 @@ def communicate(lbm : LBM, cartcomm, sd):
     
     return f_iyx
 
-
-def run_lbm_parallel(NX, NY, lbm_parameter, timesteps=100000):
-
-    comm = MPI.COMM_WORLD      # start the communicator
-    size = comm.Get_size()     # get the size (number of total processes)
-    rank = comm.Get_rank()     # get the rank (number of current process)
-
-    # start timer
-    start_time = MPI.Wtime()
-
-    NX = lbm_parameter["width"]
-    NY = lbm_parameter["height"]
-
-
-    print('NX = {} NY = {}, and sqrt(NX*NY) = {}'.format(NX,NY,np.sqrt(NX*NY)))
-    print('NX/NY = {} and NY/NX = {}\n'.format(NX/NY,NY/NX))
-    #
-
-    sectsY = None
-    sectsX = None
-    if NX < NY:
-        factor_sectY_larger = np.floornt(NY/NX)
-
-        if factor_sectY_larger == 1:
-            sectsY = size
-            sectsX = 1
-
-        else:
-            size_Y_share = factor_sectY_larger / (1+factor_sectY_larger)
-            sectsY = int(np.floor(size*size_Y_share))
-            sectsX = int(np.floor(size/sectsY))
-
-            if sectsX == 1:
-                sectsY += 1
-
-    elif NX > NY:
-        factor_sectX_larger = np.floor(NX/NY)
-
-        if factor_sectX_larger == 1:
-            sectsX = size
-            sectsY = 1
-        
-        else:
-            size_X_share = factor_sectX_larger / (1+factor_sectX_larger)
-            sectsX = int(np.floor(size*size_X_share))
-            sectsY = int(np.floor(size/sectsX))
-
-            if sectsY == 1:
-                sectsX += 1
-
-
-    elif NX==NY:
-        sectsX=int(np.floor(np.sqrt(size)))
-        sectsY=int(size/sectsX)
-        if rank == 0: print('In the case of equal size we divide the processes as {} and {}'.format(sectsX,sectsY))
-
-    print("Decomposition: y={}, x={}".format(sectsY, sectsX))
-    print('Rank {}/{} is alive.'.format(rank, size))          
-
-
-    # create cartesian communicator and get coordinates (rcoords) of rank in form (y,x)
-    cartcomm=comm.Create_cart(dims=[sectsY, sectsX],periods=[False,False],reorder=False)
+def run_lbm(cartcomm : MPI.Cartcomm, rank, size, sectsX, sectsY, lbm_parameter, timesteps):
     rcoords = cartcomm.Get_coords(rank)
-    print("Rank {} has coordinates {}".format(rank, rcoords))
+    # print("Rank {} has coordinates {}".format(rank, rcoords))
 
     # where to receive from and where send to 
     # syntax: Shift(direction,displacement) --> direction = 0 is y-direction, 
@@ -167,29 +103,38 @@ def run_lbm_parallel(NX, NY, lbm_parameter, timesteps=100000):
     sD,dD = cartcomm.Shift(0,1)
     sd = np.array([sR,dR,sL,dL,sU,dU,sD,dD], dtype = int)
 
-    allrcoords = comm.gather(rcoords,root = 0)
-    allDestSourBuf = np.zeros(size*8, dtype = int)
-    comm.Gather(sd, allDestSourBuf, root = 0)
+    # print("Rank {} has sd {}".format(rank, sd))
 
     if rank == 0:
-        print_communication_stats(allrcoords, allDestSourBuf, sectsX, sectsY, size)
+        print("Sending and receiving directions")
+    allrcoords = cartcomm.gather(rcoords,root = 0)
+
+    if rank == 0:
+        print("Communication stats:")
+        print_communication_stats(allrcoords, sectsX, sectsY, size)
 
 
     # define actual grid size
     nxsub = NX//sectsX
     nysub = NY//sectsY
-    print('Rank {}/{} has a subdomain of size x*y = {}x{}'.format(rank, size, nxsub, nysub))
-    print("sectX = {}, sectY = {}".format(sectsX, sectsY))
+
+    if nxsub == 0 or nysub == 0:
+        if rank == 0:
+            print("ERROR: nxsub or nysub is 0. nxsub: {}, nysub: {}".format(nxsub, nysub))
+            print("Use larger grid size")
+        return
+
     # add missing nodes in y direction to first row of processes
     if nysub * sectsY != NY and rcoords[0] == 0:
         nysub += NY - (nysub * sectsY)
-        print('Rank {}/{} has a subdomain of size x*y = {}x{}'.format(rank, size, nxsub, nysub))
+        print('Added missing nodes: Rank {}/{} has a subdomain of size x*y = {}x{}'.format(rank, size, nxsub, nysub))
     
     # add missing nodes in x direction to first column of processes
     if nxsub * sectsX != NX and rcoords[1] == 0:
         nxsub += NX - (nxsub * sectsX)
-        print('Rank {}/{} has a subdomain of size x*y = {}x{}'.format(rank, size, nxsub, nysub))
+        print('Added missing nodes: Rank {}/{} has a subdomain of size x*y = {}x{}'.format(rank, size, nxsub, nysub))
 
+    # print("Rank {} has subdomain of size x*y = {}x{}".format(rank, nxsub, nysub))
 
     # get lbm parameters
     reynolds_number = lbm_parameter["reynolds_number"]
@@ -230,47 +175,61 @@ def run_lbm_parallel(NX, NY, lbm_parameter, timesteps=100000):
     if boundary_conditions["right"] == "moving_wall":
         boundary_velocities["right"] = boundary_velocities_full["right"]
 
+    # print('Rank {} has boundary velocities {}'.format(rank, boundary_velocities))
     # initialize lbm per process
     lbm = LBM(nxsub, nysub, omega, boundary_conditions=boundary_conditions, boundary_velocities=boundary_velocities)
-
+    
+    spent_time = None
+    if rank == 0:
+        # start timer
+        start_time = MPI.Wtime()
+        print("STARTING LBM SIMULATION")
     for t in range(timesteps):
         # do communication
         lbm.f_iyx = communicate(lbm, cartcomm, sd)
-
+        
         lbm.step()
+
+
         if rank == 0 and t%1000 == 0:
             print('Rank {} timestep {}/{}'.format(rank, t, timesteps))
 
+    if rank == 0:
+        print("LBM SIMULATION FINISHED")
+        end_time = MPI.Wtime()
+        print("CPU{}, Y{}, X{} --> Time elapsed: {}".format(size, NY, NX, end_time - start_time))
+        spent_time = end_time - start_time
+    
     # gather all data and plot last velocity field
     lbm.update_velocity_field()
     velocity_field_size = lbm.velocity_field_Cyx.shape
     velocity_field_size_x = velocity_field_size[2] - 2
     velocity_field_size_y = velocity_field_size[1] - 2
-    print("velocity_field_size x: {}, y: {}".format(velocity_field_size_x, velocity_field_size_y))
-    local_velocity_field_size_x = np.array(comm.gather(velocity_field_size_x, root=0))
-    local_velocity_field_size_y = np.array(comm.gather(velocity_field_size_y, root=0))
+    # print("velocity_field_size x: {}, y: {}".format(velocity_field_size_x, velocity_field_size_y))
+    local_velocity_field_sizes_x = np.array(cartcomm.gather(velocity_field_size_x, root=0))
+    local_velocity_field_sizes_y = np.array(cartcomm.gather(velocity_field_size_y, root=0))
     local_velocity_field_size_full = None
 
     recvbuf = None
     if rank == 0:
-        local_velocity_field_size_full = 2 * local_velocity_field_size_x * local_velocity_field_size_y
+        print("Velocity fields gathered")
+        # print what gather has returned
+        # print("Rank {}: local_velocity_field_sizes_x: {}".format(rank, local_velocity_field_sizes_x))
+        # print("Rank {}: local_velocity_field_sizes_y: {}".format(rank, local_velocity_field_sizes_y))
+        local_velocity_field_size_full = 2 * local_velocity_field_sizes_x * local_velocity_field_sizes_y
         recvbuf = np.zeros(np.sum(local_velocity_field_size_full))
 
-    comm.Gatherv(lbm.get_velocity_field_Cyx(True).flatten(), recvbuf=(recvbuf, local_velocity_field_size_full), root=0)
+    cartcomm.Gatherv(lbm.get_velocity_field_Cyx(True).flatten(), recvbuf=(recvbuf, local_velocity_field_size_full), root=0)
     allDestSourBuf = np.array(recvbuf)
 
-    # simulated_velocity_field_Cyx = lbm.get_velocity_field_Cyx(True)
-    # print("Plotting...")
-    # plot per rank velocity field
-    # plot_name = "SlidingLidResults/PARALLEL_Sliding_Lid_Velocity_Streamplot_T_{}_RE_{}_RANK_{}.png".format(timesteps, reynolds_number, rank)
-    # plot_velocity_field(simulated_velocity_field_Cyx, plot_name, timesteps-1, characteristic_velocity)
-    # store velocity field data
-    # np.save("SlidingLidResults/PARALLEL_Sliding_Lid_Velocity_Field_T_{}_RE_{}_RANK_{}.npy".format(timesteps, reynolds_number, rank), simulated_velocity_field_Cyx)
-
     if rank == 0:
+        print("Building full velocity field...")
         # merge single velocity fields to one big velocity field
-        final_velocity_field_size_x = np.sum(local_velocity_field_size_x)
-        final_velocity_field_size_y = np.sum(local_velocity_field_size_y)
+
+        # sum over the rows of x sizes to get the final x size
+        final_velocity_field_size_x = np.sum(local_velocity_field_sizes_x) // sectsY
+        # sum over the columns of y sizes to get the final y size
+        final_velocity_field_size_y = np.sum(local_velocity_field_sizes_y) // sectsX
         if sectsX == 1:
             final_velocity_field_size_x = velocity_field_size_x
         if sectsY == 1:
@@ -280,53 +239,151 @@ def run_lbm_parallel(NX, NY, lbm_parameter, timesteps=100000):
     
         # go row-wise through processes and put them into simulated_velocity_field_Cyx
         current_rank = 0
-        last_end_index = 0
-        print("ALLDESTSOURBUF shape: {}".format(allDestSourBuf.shape))
-        print("Local velocity field size full shape: {}".format(local_velocity_field_size_full.shape))
+        previous_end_index = 0
         for j in np.arange(sectsY):
             for i in np.arange(sectsX):
                 # multiply with 2 because we have 2 velocity channels
                 grid_length = local_velocity_field_size_full[current_rank]
-                rank_velocity_field_height = local_velocity_field_size_y[current_rank]
-                rank_velocity_field_width = local_velocity_field_size_x[current_rank]
-                start_index = last_end_index
-                end_index = last_end_index + grid_length
-                print("start_index: {}, end_index: {}".format(start_index, end_index))
-                # velocity_field_part_data = allDestSourBuf[i+j*sectsX]
+                rank_velocity_field_height = local_velocity_field_sizes_y[current_rank]
+                rank_velocity_field_width = local_velocity_field_sizes_x[current_rank]
+                start_index = previous_end_index
+                end_index = previous_end_index + grid_length
                 velocity_field_part_data = allDestSourBuf[start_index:end_index]
-                print("allDestSourBuf.shape: {}".format(allDestSourBuf.shape))
-                print("velocity_field_part_data.shape: {}".format(velocity_field_part_data.shape))
                 velocity_field_Cyx = velocity_field_part_data.reshape((2, rank_velocity_field_height, rank_velocity_field_width))
 
-                
                 simulated_velocity_field_Cyx[:, j*rank_velocity_field_height:(j+1)*rank_velocity_field_height, i*rank_velocity_field_width:(i+1)*rank_velocity_field_width] = velocity_field_Cyx
-                last_end_index = end_index
+                previous_end_index = end_index
                 current_rank += 1
         print("Plotting...")
-        plot_name = "SlidingLidResults/PARALLEL_Sliding_Lid_Velocity_Streamplot_T_{}_RE_{}_FULL.png".format(timesteps, reynolds_number)
+        v_shape = simulated_velocity_field_Cyx.shape
+        plot_name = "SlidingLidResults/PARALLEL_Sliding_Lid_Velocity_Streamplot_Y{}_X{}_T_{}_RE_{}_CPU_{}_FULL.png".format(v_shape[1], v_shape[2], timesteps, reynolds_number, size)
         plot_velocity_field(simulated_velocity_field_Cyx, plot_name, timesteps-1, characteristic_velocity)
         # store velocity field data
-        np.save("SlidingLidResults/PARALLEL_Sliding_Lid_Velocity_Field_T_{}_RE_{}_FULL.npy".format(timesteps, reynolds_number), simulated_velocity_field_Cyx)
+        np.save("SlidingLidResults/PARALLEL_Sliding_Lid_Velocity_Field_Y{}_X{}_T_{}_RE_{}_CPU_{}_FULL.npy".format(v_shape[1], v_shape[2], timesteps, reynolds_number, size), simulated_velocity_field_Cyx)
+    
+    if rank == 0:
+        return spent_time
+    else:
+        return None 
 
-        # print time elapsed
-        print("Time elapsed: {}".format(MPI.Wtime() - start_time))
+def run_lbm_parallel(NX, NY, lbm_parameter, timesteps=100000, number_of_processes_list=None):
+
+    comm = MPI.COMM_WORLD      # start the communicator
+    size = comm.Get_size()     # get the size (number of total processes)
+    rank = comm.Get_rank()     # get the rank (number of current process)
+    NX = lbm_parameter["width"]
+    NY = lbm_parameter["height"]
+    if rank == 0:
+        print('NX = {} NY = {}'.format(NX,NY))
+
+    time_spent_list = []
+
+    if number_of_processes_list is None:
+        number_of_processes_list = [size]
+    
+    for i, number_of_processes in enumerate(number_of_processes_list):
+        if number_of_processes > size:
+            number_of_processes = size
+            print("Number of processes is larger than the number of processes requested. Using {} processes instead.".format(size))
 
 
-def print_communication_stats(allrcoords, allDestSourBuf, sectsX, sectsY, size):
-    print(' ')
+        sectsY = None
+        sectsX = None
+        if NX < NY:
+            factor_sectY_larger = int(np.floor(NY/NX))
+
+            if factor_sectY_larger == 1:
+                sectsY = int(np.floor(np.sqrt(number_of_processes)))
+                sectsX = sectsY
+
+            else:
+                size_Y_share = factor_sectY_larger / (1+factor_sectY_larger)
+                sectsY = int(np.floor(number_of_processes*size_Y_share))
+                sectsX = int(np.floor(number_of_processes/sectsY))
+
+                if sectsX == 1:
+                    sectsY += 1
+
+        elif NX > NY:
+            factor_sectX_larger = int(np.floor(NX/NY))
+
+            if factor_sectX_larger == 1:
+                sectsX = int(np.floor(np.sqrt(number_of_processes)))
+                sectsY = sectsX
+            
+            else:
+                size_X_share = factor_sectX_larger / (1+factor_sectX_larger)
+                sectsX = int(np.floor(number_of_processes*size_X_share))
+                sectsY = int(np.floor(number_of_processes/sectsX))
+
+                if sectsY == 1:
+                    sectsX += 1
+
+
+        elif NX==NY:
+            sectsX=int(np.floor(np.sqrt(number_of_processes)))
+            sectsY=int(number_of_processes/sectsX)
+
+        if rank == 0:
+            print('sectX = {} sectY = {}'.format(sectsX,sectsY))       
+
+        # create cartesian communicator and get coordinates (rcoords) of rank in form (y,x)
+        cartcomm=comm.Create_cart(dims=[sectsY, sectsX],periods=[False,False],reorder=False)
+        # if rank == 0:
+        #     # print topology information
+        #     print('Cartesian topology information:')
+        #     print('Topology: {}'.format(cartcomm.Get_topo()))
+        
+        time_spent = None
+        if rank >= sectsX*sectsY:
+            print('Rank {} is idle.'.format(rank))
+        else:   
+            used_size = sectsX*sectsY
+            if rank == 0:
+                print("Actual number of processes used: {}".format(used_size))
+            time_spent = run_lbm(cartcomm, rank, used_size, sectsX, sectsY, lbm_parameter, timesteps)
+            if rank == 0:
+                time_spent_list.append(time_spent)
+    
+
+        # plot time spent over number of processes
+        if rank == 0:
+            time_spent_array = np.array(time_spent_list)
+            fig = plt.figure()
+            # set x tick to int
+            ax = plt.gca()
+            ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+            ax.set_xlabel("Number of processes")
+            ax.set_ylabel("Time spent [s]")
+            ax.set_title("Time spent over number of processes for t={}".format(timesteps))
+            ax.plot(number_of_processes_list[:i+1], time_spent_array)
+            # plot marker
+            # ax.plot(number_of_processes_list, time_spent_list, "o")
+            plt.savefig("SlidingLidResults/PARALLEL_Sliding_Lid_X{}_Y{}_Time_Spent_T_{}_CPU{}to{}.png".format(NX, NY, timesteps, number_of_processes_list[0], number_of_processes_list[-1]))
+
+            # plot mlups with log scale
+            mlups_fig = plt.figure()
+            mlups_ax = plt.gca()
+            mlups_ax.set_xlabel("Number of processes")
+            mlups_ax.set_ylabel("MLUPS")
+            mlups_ax.set_title("MLUPS over number of processes for t={}".format(timesteps))
+            mlups_ax.loglog(number_of_processes_list[:i+1], (NX*NY*timesteps)/(time_spent_array*1000000))
+            mlups_ax.set_yscale("log")
+            mlups_ax.set_xscale("log")
+            # set xticks to powers of 10
+            mlups_ax.set_xticks([1, 10, 100, 1000])
+            mlups_ax.set_xticklabels([1, 10, 100, 1000])
+            # set yticks to powers of 10
+            mlups_ax.set_yticks([1, 10, 100, 1000])
+            mlups_ax.set_yticklabels([1, 10, 100, 1000])
+            plt.savefig("SlidingLidResults/PARALLEL_Sliding_Lid_X{}_Y{}_MLUPS_T_{}_CPU{}to{}.png".format(NX, NY, timesteps, number_of_processes_list[0], number_of_processes_list[-1]))
+
+
+def print_communication_stats(allrcoords, sectsX, sectsY, size):
     cartarray = np.ones((sectsY,sectsX),dtype=int)
-    allDestSour = np.array(allDestSourBuf).reshape((size,8))
     for i in np.arange(size):
         cartarray[allrcoords[i][0],allrcoords[i][1]] = i
-        print('Rank {} all destinations and sources {}'.format(i,allDestSour[i,:]))
-        sR_temp,dR_temp,sL_temp,dL_temp,sU_temp,dU_temp,sD_temp,dD_temp = allDestSour[i]
-        print('Rank {} is at {}'.format(i,allrcoords[i]))
-        print('sour/dest right {} {}'.format(sR_temp,dR_temp))
-        print('sour/dest left  {} {}'.format(sL_temp,dL_temp))  
-        print('sour/dest up    {} {}'.format(sU_temp,dU_temp))
-        print('sour/dest down  {} {}'.format(sD_temp,dD_temp))
-        #print('[stdout:',i,']',allDestSour[i])
-    print('')
+    print("Cartesian topology:")
     print(cartarray)
 
 def plot_velocity_field(velocity_field_Cyx, plot_name, timesteps, characteristic_velocity):
@@ -350,8 +407,6 @@ def plot_velocity_field(velocity_field_Cyx, plot_name, timesteps, characteristic
     u_y = velocity_field[1]
 
     print("velocity_field.shape: {}".format(velocity_field.shape))
-    print("u_x.shape: {}".format(u_x.shape))
-    print("u_y.shape: {}".format(u_y.shape))
     ax.streamplot(np.arange(0, u_x.shape[1]), np.arange(0, u_y.shape[0]), u_x, u_y, color=np.sqrt(u_x**2 + u_y**2), density=1.5, norm=plt.Normalize(0, characteristic_velocity))
     ax.plot([-0.5, width - 0.5], [height-1.5, height-1.5], color="red", label="Moving wall")
     ax.plot([-0.5, width - 0.5], [0.5, 0.5], color="black", label = "Fixed wall")
@@ -366,13 +421,12 @@ def plot_velocity_field(velocity_field_Cyx, plot_name, timesteps, characteristic
 
 if __name__ == "__main__":
     # define decomposition parameters
-    nt = 20000  # timesteps to iterate
-    NX = 100
-    NY = 80
-
+    nt = 2000
+    NX = 300
+    NY = 300
 
     reynolds_number = 1000
-    characteristic_length = NX
+    characteristic_length = NX if NX > NY else NY
     characteristic_velocity = 0.3
     kinematic_viscosity = characteristic_length * characteristic_velocity / reynolds_number
     omega = 1.0 / (3 * kinematic_viscosity + 0.5)
@@ -397,6 +451,8 @@ if __name__ == "__main__":
     }
 
     # lbm_parameter_lattice = convert_physical_to_lattice(lbm_parameter_physical)
-    run_lbm_parallel(NX, NY, lbm_parameter_physical, timesteps=nt)
+    number_of_processes_list = np.arange(20, 170, 10)
+    # number_of_processes_list = [3,4]
+    run_lbm_parallel(NX, NY, lbm_parameter_physical, timesteps=nt, number_of_processes_list=number_of_processes_list)
 
     # mpiexec -n 4 python3 Milestone7_Parallelization.py

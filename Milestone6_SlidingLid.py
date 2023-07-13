@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 from LBM import LBM
+from time import time
 
 def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps : int, lid_velocity : float, save_figures : bool):
     """
@@ -49,10 +50,13 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
     cbar = fig_velocity_animation.colorbar(ax=ax, mappable=matplotlib.cm.ScalarMappable(norm=plt.Normalize(0, lid_velocity), cmap="viridis"))
     cbar.set_label("Velocity magnitude")
     cbar.set_ticks(np.linspace(0, lid_velocity, 5))
+    
+    # start time
+    start_time = time()
     for i in range(1, timesteps):
         lbm.step()
 
-        if i%500 == 0:
+        if i%10000 == 0:
             print("Timestep " + str(i) + " of " + str(timesteps))
             # ax.clear()
             # ax.set_xlabel("x")
@@ -78,12 +82,19 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
             # plt.savefig("SlidingLidResults/Sliding_Lid_Velocity_Streamplot_" + str(i) + ".png")
             # plt.tight_layout()
 
-        if i%10000 == 0 or i == timesteps-1 or i in safe_timesteps:
-            print("Timestep " + str(i) + " of " + str(timesteps))
+        # if i%10000 == 0 or i == timesteps-1 or i in safe_timesteps:
+        #     print("Timestep " + str(i) + " of " + str(timesteps))
         
-            lbm.update_velocity_field()
-            simulated_velocity_field_tCyx.append(lbm.get_velocity_field_Cyx(False))
-            indices.append(i)
+        #     lbm.update_velocity_field()
+        #     simulated_velocity_field_tCyx.append(lbm.get_velocity_field_Cyx(False))
+        #     indices.append(i)
+
+    # end time
+    end_time = time()
+    print("Time elapsed: " + str(end_time - start_time))
+
+    return
+
 
     # store last velocity field
     np.save("SlidingLidResults/Sliding_Lid_Velocity_Field_RE" + str(reynolds_number) + ".npy", simulated_velocity_field_tCyx[-1])
@@ -91,7 +102,7 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
     # plot velocity field streamplot
     print("Plotting results...")
 
-    return
+    # return
 
     for i, simulated_velocity_field_Cyx in zip(indices, simulated_velocity_field_tCyx):    
         ax.clear()
@@ -139,6 +150,9 @@ if __name__ == "__main__":
     print("omega = " + str(omega))
 
     sliding_lid(grid_size_x, grid_size_y, omega, timesteps, characteristic_velocity, save_figures)
+
+    # Parallel 156 CPUs for 300x300: Time elapsed: 69.806691849
+    # Serial 300x300: Time elapsed: 2500.722847223282
 
     # # load numpy results
     # simulated_velocity_field_tCyx = np.load("SlidingLidResults/Sliding_Lid_Velocity_Field_RE1000.npy")
