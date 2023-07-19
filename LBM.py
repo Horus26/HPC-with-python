@@ -176,11 +176,6 @@ class LBM:
         self.f_eq_iyx = np.zeros((9, self.height, self.width))
         self.f_iyx = np.zeros((9, self.height, self.width))
 
-        # variables for periodic boundary with pressure gradient
-        self.f_input_border_pre_streaming = None
-        self.f_output_border_pre_streaming = None
-
-
         # Initialize the lattice directions. Given in cartesian coordinates C=(x,y) for every lattice dimension i.
         self.lattice_directions_iC = np.array([
                 [ 0, 0], # 0 (center)
@@ -227,15 +222,8 @@ class LBM:
         # calculate mean density
         self.density_mean = self.density_field_yx.mean()
 
-        # modify density field and velocity field grid according to boundary conditions (0 at dry nodes outside of border)
-        # padding in format [[top, bottom], [left, right]]
+        # add padding in format [[top, bottom], [left, right]]
         padding = [(1,1), (1,1)]
-        # boundary specific code not needed here anymore because all boundary conditions are handled with dry nodes outside of border
-        # # check only bottom and left because top and right are implicity given if bottom and left are defined not periodic
-        # if self.boundary_conditions["bottom"] != "periodic":
-        #     padding[0] = (1, 1)
-        # if self.boundary_conditions["left"] != "periodic":
-        #     padding[1] = (1, 1)
         padding = tuple(padding)
         # enlarge density field with padding of zeros
         self.density_field_yx = np.pad(self.density_field_yx, padding, mode="constant", constant_values=0)
@@ -251,7 +239,7 @@ class LBM:
 
         # check that omega is in the correct range
         if self.omega < 0 or self.omega > 2:
-            raise ValueError("Omega is not in the correct range. Given value: {}, expected: 0 <= omega <= 2".format(self.omega))
+            raise ValueError("Omega is not in the correct range. Given value: {}, expected: 0 < omega <= 2".format(self.omega))
 
         # Initialize the equilibrium distribution function.
         self.update_equilibrium_distribution_function()
@@ -402,15 +390,12 @@ class LBM:
 
         f_start_pipe_iy = self.f_iyx[:, :, self.pressure_boundary_instance.input_index]
         f_end_pipe_iy = self.f_iyx[:, :, self.pressure_boundary_instance.output_index]
-        
-        self.f_input_border_pre_streaming = f_eq_pipe_input_pressure_iy + (f_end_pipe_iy - self.f_eq_iyx[:, :, self.pressure_boundary_instance.output_index])
-        self.f_output_border_pre_streaming = f_eq_pipe_output_pressure_iy + (f_start_pipe_iy - self.f_eq_iyx[:, :, self.pressure_boundary_instance.input_index])
-        
+                
         # apply pressure boundary condition
         for i in self.pressure_boundary_instance.input_border_update_channels:
-            self.f_iyx[i, :, self.pressure_boundary_instance.input_border_index] = self.f_input_border_pre_streaming[i, :]
+            self.f_iyx[i, :, self.pressure_boundary_instance.input_border_index] = (f_eq_pipe_input_pressure_iy + (f_end_pipe_iy - self.f_eq_iyx[:, :, self.pressure_boundary_instance.output_index]))[i, :]
         for i in self.pressure_boundary_instance.output_border_update_channels:
-            self.f_iyx[i, :, self.pressure_boundary_instance.output_border_index] = self.f_output_border_pre_streaming[i, :]
+            self.f_iyx[i, :, self.pressure_boundary_instance.output_border_index] = (f_eq_pipe_output_pressure_iy + (f_start_pipe_iy - self.f_eq_iyx[:, :, self.pressure_boundary_instance.input_index]))[i, :]
 
     def boundary_handling_after_streaming(self):
         """
@@ -468,7 +453,7 @@ class LBM:
 
         # handle moving wall boundary condition for all boundaries
         # positive velocity direction is to right and up 
-        # density computation for extrapolation from: https://doi.org/10.48550/arXiv.comp-gas/9611001
+        # formula for density computation in extrapolation case from: https://doi.org/10.48550/arXiv.comp-gas/9611001
         if self.boundary_conditions["top"] == "moving_wall":
             density_top = None
             if self.density_extrapolation:
@@ -540,13 +525,6 @@ class LBM:
         self.boundary_handling_after_streaming()
         self.collision()
         
-
-    def run_simulation(self, timesteps : int = 100):
-        """
-        Run the simulation for a given number of timesteps.
-        """
-        for i in range(timesteps):
-            self.step()
 
 if __name__ == "__main__":
     lbm = LBM(15, 10)
