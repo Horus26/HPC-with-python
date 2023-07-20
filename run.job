@@ -1,13 +1,13 @@
 #!/bin/bash -x
-#SBATCH --nodes=4
+#SBATCH --nodes=26
 #SBATCH --ntasks-per-node=40
-#SBATCH --time=00:30:00
+#SBATCH --time=20:00:00
 #SBATCH -J HPC_WITH_PYTHON
 #SBATCH --mem=6gb
-#SBATCH --output=HPC_OUTPUT.out
-#SBATCH --error=HPC_ERROR.err
+#SBATCH --output=HPC_OUTPUT_FULL_DECOMP.out
+#SBATCH --error=HPC_ERROR_FULL_DECOMP.err
 #SBATCH --export=ALL
-#SBATCH --partition=dev_multiple
+#SBATCH --partition=multiple
 
 module load devel/python/3.10.0_gnu_11.1
 module load compiler/gnu/12.1

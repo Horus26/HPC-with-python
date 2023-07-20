@@ -94,7 +94,6 @@ def communicate(lbm : LBM, cartcomm, sd):
     
     return f_iyx
 
-
 def domain_decomposition(NX, NY, num_processes):
     """
     Calculate the number of subgrids in x and y direction for a given number of processes
@@ -135,6 +134,36 @@ def domain_decomposition(NX, NY, num_processes):
     return subgrids_number_X, subgrids_number_Y
 
 def run_lbm(cartcomm : MPI.Cartcomm, rank, size, NX, NY, subgrids_number_X, subgrids_number_Y, lbm_parameter, timesteps):
+    """
+    Run LBM in parallel
+
+    Parameters
+    ----------
+    cartcomm : MPI.Cartcomm
+        Cartesian communicator
+    rank : int
+        Rank of current process
+    size : int
+        Number of processes used for simulation
+    NX : int
+        Width of the grid
+    NY : int
+        Height of the grid
+    subgrids_number_X : int
+        Number of subgrids in x direction
+    subgrids_number_Y : int
+        Number of subgrids in y direction
+    lbm_parameter : dict
+        Dictionary of LBM parameters
+    timesteps : int
+        Number of timesteps
+
+    Returns
+    -------
+    spent_time : float
+        Time spent for simulation
+    """
+
     rcoords = cartcomm.Get_coords(rank)
     # print("Rank {} has coordinates {}".format(rank, rcoords))
 
@@ -155,40 +184,29 @@ def run_lbm(cartcomm : MPI.Cartcomm, rank, size, NX, NY, subgrids_number_X, subg
 
     if rank == 0:
         print("Sending and receiving directions")
+
+    # gather all coordinates of processes
     allrcoords = cartcomm.gather(rcoords,root = 0)
 
     if rank == 0:
         print("Communication stats:")
         print_communication_stats(allrcoords, subgrids_number_X, subgrids_number_Y, size)
 
-
-    # define actual grid size
+    # define actual grid size per process
     subgrid_size_x = NX//subgrids_number_X
     subgrid_size_y = NY//subgrids_number_Y
 
+    # check if grid size is valid
     if subgrid_size_x == 0 or subgrid_size_y == 0:
         if rank == 0:
-            print("ERROR: nxsub or nysub is 0. nxsub: {}, nysub: {}".format(subgrid_size_x, subgrid_size_y))
+            print("ERROR: subgrid_size_x or subgrid_size_y is 0. subgrid_size_x: {}, subgrid_size_y: {}".format(subgrid_size_x, subgrid_size_y))
             print("Use larger grid size")
         return
-
-    # # add missing nodes in y direction to first row of processes
-    # if subgrid_size_y * subgrids_number_Y != NY and rcoords[0] == 0:
-    #     subgrid_size_y += NY - (subgrid_size_y * subgrids_number_Y)
-    #     print('Added missing nodes: Rank {}/{} has a subdomain of size x*y = {}x{}'.format(rank, size, subgrid_size_x, subgrid_size_y))
-    
-    # # add missing nodes in x direction to first column of processes
-    # if subgrid_size_x * subgrids_number_X != NX and rcoords[1] == 0:
-    #     subgrid_size_x += NX - (subgrid_size_x * subgrids_number_X)
-    #     print('Added missing nodes: Rank {}/{} has a subdomain of size x*y = {}x{}'.format(rank, size, subgrid_size_x, subgrid_size_y))
-
     # print("Rank {} has subdomain of size x*y = {}x{}".format(rank, subgrid_size_x, subgrid_size_y))
 
     # get lbm parameters
     reynolds_number = lbm_parameter["reynolds_number"]
-    characteristic_length = lbm_parameter["characteristic_length"]
     characteristic_velocity = lbm_parameter["characteristic_velocity"]
-    kinematic_viscosity = lbm_parameter["kinematic_viscosity"]
     omega = lbm_parameter["omega"]
     boundary_conditions_full = lbm_parameter["boundary_conditions_full"]
     boundary_velocities_full = lbm_parameter["boundary_velocities_full"]
@@ -235,9 +253,8 @@ def run_lbm(cartcomm : MPI.Cartcomm, rank, size, NX, NY, subgrids_number_X, subg
     for t in range(timesteps):
         # do communication
         lbm.f_iyx = communicate(lbm, cartcomm, sd)
-        
+        # update step
         lbm.step()
-
 
         if rank == 0 and t%1000 == 0:
             print('Rank {} timestep {}/{}'.format(rank, t, timesteps))
@@ -248,12 +265,13 @@ def run_lbm(cartcomm : MPI.Cartcomm, rank, size, NX, NY, subgrids_number_X, subg
         print("CPU{}, Y{}, X{} --> Time elapsed: {}".format(size, NY, NX, end_time - start_time))
         spent_time = end_time - start_time
     
-    # gather all data and plot last velocity field
+    # gather data for plotting last velocity field
     lbm.update_velocity_field()
     velocity_field_size = lbm.velocity_field_Cyx.shape
     velocity_field_size_x = velocity_field_size[2] - 2
     velocity_field_size_y = velocity_field_size[1] - 2
-    # print("velocity_field_size x: {}, y: {}".format(velocity_field_size_x, velocity_field_size_y))
+    
+    # gather velocity field sizes of each process
     local_velocity_field_sizes_x = np.array(cartcomm.gather(velocity_field_size_x, root=0))
     local_velocity_field_sizes_y = np.array(cartcomm.gather(velocity_field_size_y, root=0))
     local_velocity_field_size_full = None
@@ -261,13 +279,13 @@ def run_lbm(cartcomm : MPI.Cartcomm, rank, size, NX, NY, subgrids_number_X, subg
     recvbuf = None
     if rank == 0:
         print("Velocity fields gathered")
-        # print("Rank {}: local_velocity_field_sizes_x: {}".format(rank, local_velocity_field_sizes_x))
-        # print("Rank {}: local_velocity_field_sizes_y: {}".format(rank, local_velocity_field_sizes_y))
+        # calculate full size of velocity field
         local_velocity_field_size_full = 2 * local_velocity_field_sizes_x * local_velocity_field_sizes_y
         recvbuf = np.zeros(np.sum(local_velocity_field_size_full))
 
+    # gather velocity field data of each process
     cartcomm.Gatherv(lbm.get_velocity_field_Cyx(True).flatten(), recvbuf=(recvbuf, local_velocity_field_size_full), root=0)
-    allDestSourBuf = np.array(recvbuf)
+    velocityFieldsBuffer = np.array(recvbuf)
 
     if rank == 0:
         print("Building full velocity field...")
@@ -282,6 +300,7 @@ def run_lbm(cartcomm : MPI.Cartcomm, rank, size, NX, NY, subgrids_number_X, subg
         if subgrids_number_Y == 1:
             final_velocity_field_size_y = velocity_field_size_y
 
+        # prepare the fully combined velocity field
         simulated_velocity_field_Cyx = np.zeros((2, final_velocity_field_size_y, final_velocity_field_size_x))
     
         # go row-wise through processes and put them into simulated_velocity_field_Cyx
@@ -293,15 +312,16 @@ def run_lbm(cartcomm : MPI.Cartcomm, rank, size, NX, NY, subgrids_number_X, subg
                 if allrcoords[current_rank][0] != j or allrcoords[current_rank][1] != i:
                     print("ERROR: Rank {} does not align with coordinates y,x=({}, {})".format(current_rank, j, i))
                     return
-                # multiply with 2 because we have 2 velocity channels
+
                 grid_length = local_velocity_field_size_full[current_rank]
                 rank_velocity_field_height = local_velocity_field_sizes_y[current_rank]
                 rank_velocity_field_width = local_velocity_field_sizes_x[current_rank]
                 start_index = previous_end_index
                 end_index = previous_end_index + grid_length
-                velocity_field_part_data = allDestSourBuf[start_index:end_index]
+                velocity_field_part_data = velocityFieldsBuffer[start_index:end_index]
                 velocity_field_Cyx = velocity_field_part_data.reshape((2, rank_velocity_field_height, rank_velocity_field_width))
 
+                # put velocity field part into simulated_velocity_field_Cyx
                 simulated_velocity_field_Cyx[:, j*rank_velocity_field_height:(j+1)*rank_velocity_field_height, i*rank_velocity_field_width:(i+1)*rank_velocity_field_width] = velocity_field_Cyx
                 previous_end_index = end_index
                 current_rank += 1
@@ -318,17 +338,39 @@ def run_lbm(cartcomm : MPI.Cartcomm, rank, size, NX, NY, subgrids_number_X, subg
         return None 
 
 def run_lbm_parallel(lbm_parameter, timesteps=100000, number_of_processes_list=None, more_grid_sizes=None):
+    """
+    Run LBM in parallel
 
-    comm = MPI.COMM_WORLD      # start the communicator
-    size = comm.Get_size()     # get the size (number of total processes)
-    rank = comm.Get_rank()     # get the rank (number of current process)
+    Parameters
+    ----------
+    lbm_parameter : dict
+        Dictionary of LBM parameters
+    timesteps : int, optional
+        Number of timesteps. The default is 100000.
+    number_of_processes_list : list, optional
+        List of number of processes. The default is None.
+    more_grid_sizes : list, optional
+        List of grid sizes. The default is None.
+
+    Returns
+    -------
+    None.
+    """
+    comm = MPI.COMM_WORLD
+    # get the size (number of total processes)
+    size = comm.Get_size()
+    # get the rank (number of current process)
+    rank = comm.Get_rank()
 
     first_NX = lbm_parameter["width"]
     first_NY = lbm_parameter["height"]
+
+    # build list of grid sizes if given
     grid_sizes_list = [[first_NX, first_NY]]
     if more_grid_sizes is not None:
         grid_sizes_list += more_grid_sizes
 
+    # prepare figures for plotting on rank 0
     mlups_fig = None
     mlups_ax = None
     time_spent_fig = None
@@ -339,6 +381,7 @@ def run_lbm_parallel(lbm_parameter, timesteps=100000, number_of_processes_list=N
         time_spent_fig = plt.figure()
         time_spent_ax = time_spent_fig.gca()
         
+    # loop over grid sizes
     for NX, NY in grid_sizes_list:
 
         if rank == 0:
@@ -348,11 +391,13 @@ def run_lbm_parallel(lbm_parameter, timesteps=100000, number_of_processes_list=N
         if number_of_processes_list is None:
             number_of_processes_list = [size]
         
+        # loop over number of processes and run lbm in parallel
         for i, number_of_processes in enumerate(number_of_processes_list):
             if number_of_processes > size:
                 number_of_processes = size
                 print("Number of processes is larger than the number of processes requested. Using {} processes instead.".format(size))
 
+            # calculate number of subgrids in x and y direction with the domain decomposition
             subgrids_number_X, subgrids_number_Y = domain_decomposition(NX, NY, number_of_processes)
 
             if rank == 0:
@@ -361,12 +406,10 @@ def run_lbm_parallel(lbm_parameter, timesteps=100000, number_of_processes_list=N
             comm.barrier()
             # create cartesian communicator and get coordinates (rcoords) of rank in form (y,x)
             cartcomm=comm.Create_cart(dims=[subgrids_number_Y, subgrids_number_X],periods=[False,False],reorder=False)
-            # if rank == 0:
-            #     # print topology information
-            #     print('Cartesian topology information:')
-            #     print('Topology: {}'.format(cartcomm.Get_topo()))
             
             time_spent = None
+
+            # only use processes that are needed by decomposition
             if rank >= subgrids_number_X*subgrids_number_Y:
                 if rank == subgrids_number_X*subgrids_number_Y:
                     print('Rank {} and larger ranks are idle.'.format(rank))
@@ -374,6 +417,8 @@ def run_lbm_parallel(lbm_parameter, timesteps=100000, number_of_processes_list=N
                 used_size = subgrids_number_X*subgrids_number_Y
                 if rank == 0:
                     print("Actual number of processes used: {}/{}".format(used_size, number_of_processes))
+                
+                # run lbm in parallel with defined number of subgrids and processes
                 time_spent = run_lbm(cartcomm, rank, used_size, NX, NY, subgrids_number_X, subgrids_number_Y, lbm_parameter, timesteps)
                 if rank == 0:
                     time_spent_list.append(time_spent)
@@ -381,17 +426,14 @@ def run_lbm_parallel(lbm_parameter, timesteps=100000, number_of_processes_list=N
                 cartcomm.barrier()
                 cartcomm.Free()
         
-            
-
-            # plot time spent over number of processes
             if rank == 0:
+                # plot time spent over number of processes
                 time_spent_array = np.array(time_spent_list)
                 # set x tick to int
                 time_spent_ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
                 time_spent_ax.set_xlabel("Number of processes")
                 time_spent_ax.set_ylabel("Time spent [s]")
                 time_spent_ax.set_title("Time spent over number of processes for t={}".format(timesteps))
-
                 label = None
                 if i == len(number_of_processes_list) - 1:
                     label = "X={}, Y={}".format(NX, NY)
@@ -424,14 +466,50 @@ def run_lbm_parallel(lbm_parameter, timesteps=100000, number_of_processes_list=N
                 mlups_fig.savefig("SlidingLidResults/PARALLEL_Sliding_Lid_MLUPS_T_{}_CPU{}to{}.png".format(timesteps, number_of_processes_list[0], number_of_processes_list[-1]))
 
 
-def print_communication_stats(allrcoords, sectsX, sectsY, size):
-    cartarray = np.ones((sectsY,sectsX),dtype=int)
+def print_communication_stats(allrcoords, subgrids_number_X, subgrids_number_Y, size):
+    """
+    Print communication stats
+
+    Parameters
+    ----------
+    allrcoords : np.array
+        Array of all coordinates of processes
+    subgrids_number_X : int
+        Number of subgrids in x direction
+    subgrids_number_Y : int
+        Number of subgrids in y direction
+    size : int
+        Number of processes
+
+    Returns
+    -------
+    None.
+    """
+    cartarray = np.ones((subgrids_number_Y,subgrids_number_X),dtype=int)
     for i in np.arange(size):
         cartarray[allrcoords[i][0],allrcoords[i][1]] = i
     print("Cartesian topology:")
     print(cartarray)
 
 def plot_velocity_field(velocity_field_Cyx, plot_name, timesteps, characteristic_velocity):
+    """
+    Plot velocity field
+
+    Parameters
+    ----------
+    velocity_field_Cyx : np.array
+        Velocity field
+    plot_name : str
+        Name of the plot
+    timesteps : int
+        Timestep of the velocity field
+    characteristic_velocity : float
+        Characteristic velocity
+
+    Returns
+    -------
+    None.
+    """
     width = velocity_field_Cyx.shape[2]
     height = velocity_field_Cyx.shape[1]
     
@@ -459,17 +537,14 @@ def plot_velocity_field(velocity_field_Cyx, plot_name, timesteps, characteristic
     ax.plot([width-0.5, width-0.5], [0.5, height - 1.5], color="black")
 
     plt.tight_layout()
-    # save with rank number
     fig_velocity_field.savefig(plot_name)
     plt.close(fig_velocity_field)
-
 
 if __name__ == "__main__":
     # define decomposition parameters
     nt = 100000
     NX = 300
     NY = 300
-
     reynolds_number = 1000
     characteristic_length = NX if NX > NY else NY
     characteristic_velocity = 0.3
@@ -497,11 +572,7 @@ if __name__ == "__main__":
 
     # define number of processes to use by 2^x up to 1024
     number_of_processes_list = [2**i for i in range(0, 11)]
-    # number_of_processes_list = [64, 128, 160]
     more_grid_sizes = [[200, 200], [400, 400], [800, 800]]
     run_lbm_parallel(lbm_parameter, timesteps=nt, number_of_processes_list=number_of_processes_list, more_grid_sizes=more_grid_sizes)
-
-    # x,y = domain_decomposition(NX, NY, 32)
-    # print("x: {}, y: {}".format(x, y))
 
     # mpiexec -n 4 python3 Milestone7_Parallelization.py

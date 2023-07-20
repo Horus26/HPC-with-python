@@ -210,7 +210,6 @@ def velocity_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : floa
     analytical_velocity_field_ty = []
     analytical_velocity_field_ty.append(calc_analytical_solution(a0, analytical_viscositity, L, timestep=0, period=period))          
 
-    timesteps_for_plotting = np.linspace(0, timesteps, 10, dtype=int)
     fig_velocity_over_time = None
     ax1 = None
     if plot:
@@ -223,7 +222,6 @@ def velocity_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : floa
         simulated_velocity_field_tyx.append(lbm.get_velocity_field_Cyx(True)[0, :, :])
         analytical_velocity_field_ty.append(calc_analytical_solution(a0, analytical_viscositity, L, timestep=i+1, period=period))
 
-        # if plot and i in timesteps_for_plotting:
         if plot and i % 100 == 0:
             # plot the x component of the velocity field at an arbitrary x position (here 0) and over all y positions
             ax1.plot(np.arange(L), lbm.get_velocity_field_Cyx(True)[0, :, 0], label="t={}".format(i))
@@ -241,14 +239,6 @@ def velocity_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : floa
     simulated_solution_t = np.amax(np.abs(simulated_velocity_field_tyx), axis=(1,2))
     simulated_viscosity = calc_kinematic_viscosity(np.arange(timesteps + 1), simulated_solution_t, period)
 
-    # 3 u graphs (also for density)
-    # 1. decay of amplitude, also for different omega
-    # for large viscosity (small omega) the amplitude decays faster
-    # 2. viscosity over omega, analytical (like 1/omega) and simulated (for small omega it does not reproduce the analytical result (knick in the graph))
-    # 3. u_x over y: decay of wave at different timesteps
-
-    # print("Analytical viscosity: {}".format(analytical_viscositity))
-    # print("Simulated viscosity: {}".format(simulated_viscosity))
     if plot:
         position = int(L/(4*period_multiplier))
         analytical_velocity_t = np.array(analytical_velocity_field_ty)[:, position]
@@ -328,13 +318,8 @@ def plot_decaying_wave(a0, analytical_data_values_t, simulated_data_values_t, va
     None.
     """
     safe_title = title.replace("/", "_")
-    # remove everything from omega_ from title
-    # plot_title = title.split("omega")[0]
     plot_title = title.replace("_", " ")
 
-    # find min and max values for the y axis
-    # min_value = min(np.amin(analytical_data_values_t), np.amin(simulated_data_values_t))
-    # max_value = max(np.amax(analytical_data_values_t), np.amax(simulated_data_values_t))
     # plot the data values over time
     fig = plt.figure()
     ax1 = fig.add_subplot(111)

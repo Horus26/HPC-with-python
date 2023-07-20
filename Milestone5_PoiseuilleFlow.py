@@ -22,11 +22,14 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     -------
     None.
     """
+
+    # define inlet and outlet pressure
     base_pressure = 1 / 3
     pressure_difference = 0.001
     inlet_pressure = base_pressure + pressure_difference
     outlet_pressure = base_pressure - pressure_difference
     
+    # prepare lbm parameters
     boundary_conditions = {"bottom": "bounce_back", "top": "bounce_back", "left": "periodic", "right": "periodic"}
     boundary_pressure = {"bottom": None, "top": None, "left": inlet_pressure, "right": outlet_pressure, "output": "right", "input": "left"}
 
@@ -57,6 +60,7 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
 
     max_velocity = np.max(np.array(simulated_velocity_field_tCyx)[:, 0, :, :])
 
+    # calculate analytical solution
     analytical_viscosity = (1/3) * (1/omega - 0.5)
     analytical_solution_y = calc_poiseuille_flow_analytical_solution(lbm.height-2, lbm.width-2, inlet_pressure, outlet_pressure, analytical_viscosity, density=1)
 
@@ -71,7 +75,7 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     colors = matplotlib.cm.rainbow(np.linspace(0, 1, len(indices) + 1))
     for step, (i, simulated_velocity_field_Cyx) in enumerate(zip(indices, simulated_velocity_field_tCyx)):
         ax_vel_profile_Lx2.plot(np.array(simulated_velocity_field_Cyx)[0, :, lx2], y, label="t = " + str(i), color=colors[step])
-
+    # plot analytical solution
     ax_vel_profile_Lx2.plot(analytical_solution_y, np.arange(1, lbm.height-1), label="Analytical solution", color="black", linestyle="--")
     ax_vel_profile_Lx2.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left", mode="expand", borderaxespad=0, ncol=3, labelspacing = 1)
     plt.tight_layout()
@@ -87,7 +91,6 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     ax_velocity_vectors.set_xlim(-10, lbm.width+10)
     ax_velocity_vectors.set_ylim(-10, lbm.height+10)
     ax_velocity_vectors.set_title("Velocity vectors for steady state velocity field")
-
     steady_state_velocity_field_Cyx = np.flip(steady_state_velocity_field_Cyx, axis=1)
     u_x = steady_state_velocity_field_Cyx[0][1:-1, 1:-1]
     u_y = steady_state_velocity_field_Cyx[1][1:-1, 1:-1]
@@ -100,12 +103,10 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     # cbar
     cbar = fig_velocity_vectors.colorbar(ax=ax_velocity_vectors, mappable=matplotlib.cm.ScalarMappable(norm=plt.Normalize(0, max_velocity), cmap="viridis"))
     cbar.set_label("Velocity strength")
-    # ax_velocity_vectors.quiver(np.arange(lbm.width), np.arange(lbm.height), steady_state_velocity_field_Cyx[0], steady_state_velocity_field_Cyx[1])
     ax_velocity_vectors.legend(bbox_to_anchor=(0.45, 0), loc="lower center",
                 bbox_transform=fig_velocity_vectors.transFigure, ncol=3)
     plt.tight_layout()
     plt.savefig("PoiseuilleFlowResults/PoiseuilleFlow_VelocityVectors_{}_x_{}_T{}_omega{}.png".format(grid_size_y, grid_size_x, timesteps, omega), bbox_inches='tight')
-    
     
     # plot the last density field at L_y / 2
     ly2 = int(lbm.height/2)
@@ -132,9 +133,6 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
         area += simulated_velocity_field_tCyx[-1][0][i][int(lbm.width/2)]
     print("Area of velocity profile at middle of pipe: " + str(area))
 
-    # Area of velocity profile at inlet: 3.2600945593390405
-    # Area of velocity profile at middle of pipe: 3.269705295167559
-
 
 def calc_poiseuille_flow_analytical_solution(pipe_height : int, pipe_length : int, inlet_pressure : float, outlet_pressure : float, viscosity : float, density : float):
     """
@@ -150,6 +148,8 @@ def calc_poiseuille_flow_analytical_solution(pipe_height : int, pipe_length : in
         The pressure at the outlet.
     viscosity : float
         The viscosity of the fluid.
+    density : float
+        The density of the fluid.
 
     Returns
     -------
@@ -167,21 +167,8 @@ def calc_poiseuille_flow_analytical_solution(pipe_height : int, pipe_length : in
 
 
 if __name__ == "__main__":
-
     grid_size_x = 140
     grid_size_y = 60
     omega = 0.5
     timesteps = 20000
     poiseuille_flow(grid_size_x, grid_size_y, omega, timesteps)
-
-    # omega = 0.5
-    # Area of velocity profile at inlet: 4.348060543646651
-    # Area of velocity profile at middle of pipe: 4.36062289522719
-
-    # omega = 1.0
-    # Area of velocity profile at inlet: 1.5177770821469532
-    # Area of velocity profile at middle of pipe: 1.5222781742711273
-
-    # omega = 1.5
-    # Area of velocity profile at inlet: 0.511146472112152
-    # Area of velocity profile at middle of pipe: 0.5126680197639538

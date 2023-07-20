@@ -24,11 +24,8 @@ def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps 
     """
     
     top_boundary_velocity = 0.1
-    # boundary_conditions = {"bottom": "bounce_back", "top": "moving_wall", "left": "periodic", "right": "periodic"}
     boundary_conditions = {"bottom": "bounce_back", "top": "moving_wall", "left": "periodic", "right": "periodic"}
     boundary_velocities = {"bottom": 0.0, "top": top_boundary_velocity, "left": 0.0, "right": 0.0}
-    # boundary_velocities = {"bottom": top_boundary_velocity, "top": top_boundary_velocity, "left": top_boundary_velocity, "right": top_boundary_velocity}
-    # boundary_velocities = None
     initial_velocity_field_Cyx = None
 
     # initialize LBM
@@ -64,8 +61,6 @@ def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps 
     ax1.set_ylim(-10, lbm.height+10)
     x = np.arange(lbm.width)
     y = np.arange(lbm.height)
-
-    # max_velocity = np.max(np.array(simulated_velocity_field_tCyx)[:, 0, :, :])
 
     # plot strength of velocity field
     for i, simulated_velocity_field_Cyx in zip(indices, simulated_velocity_field_tCyx):
@@ -112,13 +107,12 @@ def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps 
     ax_vel_profile_Lx2.set_ylabel("y")
     ax_vel_profile_Lx2.set_ylim(0, lbm.height-1)
     ax_vel_profile_Lx2.set_xlim(0, top_boundary_velocity)
-
     y = np.arange(grid_size_y - 1, -1, -1)
     colors = matplotlib.cm.rainbow(np.linspace(0, 1, len(indices) + 1))
     for step, (i, simulated_velocity_field_Cyx) in enumerate(zip(indices, simulated_velocity_field_tCyx)):
         if (i % 1000 == 0 and i > 0) or i == indices[-1] or i in [10, 50, 100]:
             ax_vel_profile_Lx2.plot(np.array(simulated_velocity_field_Cyx)[0, 1:-1, lx2], y, label="t = " + str(i), color=colors[step])
-
+    # plot analytical solution
     analytically_expected_velocity_profile = np.arange(grid_size_y - 1, -1, -1) * (top_boundary_velocity / (grid_size_y-1))
     ax_vel_profile_Lx2.plot(analytically_expected_velocity_profile, y, label="Analytical", color="black", linestyle="dashed")
     ax_vel_profile_Lx2.legend(bbox_to_anchor=(1.04, 1), borderaxespad=0)
@@ -135,7 +129,6 @@ def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps 
     ax_velocity_vectors.set_xlim(-10, lbm.width+10)
     ax_velocity_vectors.set_ylim(-10, lbm.height+10)
     ax_velocity_vectors.set_title("Velocity vectors for steady state velocity field")
-
     steady_state_velocity_field_Cyx = np.flip(steady_state_velocity_field_Cyx, axis=1)
     u_x = steady_state_velocity_field_Cyx[0][1:-1, 1:-1]
     u_y = steady_state_velocity_field_Cyx[1][1:-1, 1:-1]
@@ -151,13 +144,11 @@ def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps 
     # ax_velocity_vectors.quiver(np.arange(lbm.width), np.arange(lbm.height), steady_state_velocity_field_Cyx[0], steady_state_velocity_field_Cyx[1])
     ax_velocity_vectors.legend(bbox_to_anchor=(0.45, 0), loc="lower center",
                 bbox_transform=fig_velocity_vectors.transFigure, ncol=3)
-    
     plt.savefig("CouetteFlowResults/CouetteFlow_VelocityVectors_t{}_y{}_x{}_omega{}.png".format(timesteps, grid_size_y, grid_size_x, omega), bbox_inches='tight')
     plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
-
     grid_size_x = 140
     grid_size_y = 100
     omega = 1.0
