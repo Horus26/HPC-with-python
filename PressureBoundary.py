@@ -2,6 +2,8 @@
 class PressureBoundary:
     def __init__(self, rho_input, rho_output, input_border_update_channels, output_border_update_channels, input_index=1, output_index=-2, input_border_index=0, output_border_index=-1):
         """
+        Stores the information about the pressure boundary.
+
         Parameters
         ----------
         rho_input : float
