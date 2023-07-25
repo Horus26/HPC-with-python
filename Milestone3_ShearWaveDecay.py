@@ -248,7 +248,7 @@ def velocity_shear_wave_decay(grid_size_x : int, grid_size_y : int, omega : floa
 
 def viscosity_over_omega(grid_size_x, grid_size_y, timesteps, rho0, a0, k, use_density_perturbation=False):
     """
-    Plot the viscosity over omega for a shear wave decay.
+    Run the shear wave decay simulations for multiple omega values and plot the viscosity over the respective omega value.
 
     Parameters
     ----------
@@ -293,7 +293,7 @@ def viscosity_over_omega(grid_size_x, grid_size_y, timesteps, rho0, a0, k, use_d
     plt.xlabel("Omega")
     plt.ylabel("Viscosity")
     plt.legend()
-    plt.savefig("ShearWaveDecayResults/viscosity_over_omega_{}_{}_{}.png".format("density" if use_density_perturbation else "velocity", grid_size_y, grid_size_x))
+    plt.savefig("ShearWaveDecayResults/viscosity_over_omega_{}_Y{}_X{}.png".format("density" if use_density_perturbation else "velocity", grid_size_y, grid_size_x))
     # plt.show()
 
 def plot_decaying_wave(a0, analytical_data_values_t, simulated_data_values_t, value_type, title):
@@ -348,6 +348,7 @@ if __name__ == "__main__":
     use_density_perturbation = True
     plot_wave = True
 
+    # run the shear wave decay simulation for different omega values (in velocity and density perturbation)
     omega_values_to_evaluate = [0.3, 0.6, 1.0, 1.8]
     print("Evaluating for grid size y={}, x={}".format(grid_size_y, grid_size_x))
     for omega in omega_values_to_evaluate:
@@ -355,9 +356,12 @@ if __name__ == "__main__":
         analytical_viscosity, simulated_viscosity = density_shear_wave_decay(grid_size_x, grid_size_y, omega, timesteps, rho0, a0, k, plot=plot_wave)
         analytical_viscosity, simulated_viscosity =  velocity_shear_wave_decay(grid_size_x, grid_size_y, omega, timesteps, rho0, a0, k, plot=plot_wave)
 
+    # find the viscosity over omega for a shear wave decay with density perturbation
     # viscosity_over_omega(grid_size_x, grid_size_y, timesteps, rho0, a0, k, use_density_perturbation=use_density_perturbation)
+    # find the viscosity over omega for a shear wave decay with velocity perturbation
     # viscosity_over_omega(grid_size_x, grid_size_y, timesteps, rho0, a0, k, use_density_perturbation=not use_density_perturbation)
 
+    # find the viscosity over omega for a shear wave decay for a smaller grid size
     # grid_size_x = 20
     # grid_size_y = 10
     # print("Evaluating for grid size y={}, x={}".format(grid_size_y, grid_size_x))

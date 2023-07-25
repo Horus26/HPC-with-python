@@ -53,7 +53,7 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
                 lbm.update_velocity_field()
                 simulated_velocity_field_tCyx.append(lbm.get_velocity_field_Cyx(False))
                 indices.append(i)
-                # store last density field
+        # store last density field
         if i == timesteps-1:
             lbm.update_density_field()
             last_density_field = lbm.get_density_field_yx()

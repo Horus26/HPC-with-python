@@ -66,7 +66,7 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
     print("Time elapsed: " + str(end_time - start_time))
 
     # store last velocity field
-    np.save("SlidingLidResults/FinalResultsSerial/Sliding_Lid_Velocity_Field_RE" + str(reynolds_number) + ".npy", simulated_velocity_field_tCyx[-1])
+    np.save("SlidingLidResults/Sliding_Lid_Velocity_Field_SERIAL_RE" + str(reynolds_number) + ".npy", simulated_velocity_field_tCyx[-1])
 
     # plot velocity field streamplot
     print("Plotting results...")

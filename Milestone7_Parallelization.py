@@ -6,7 +6,7 @@ from LBM import LBM
 
 def communicate(lbm : LBM, cartcomm, sd):
     """
-    Communicate between subgrids
+    Communicate populations between subgrids
 
     Parameters
     ----------
@@ -43,7 +43,7 @@ def communicate(lbm : LBM, cartcomm, sd):
     recvbuf = np.zeros(subgrid_size_y_with_b*3)
     # send and receive
     cartcomm.Sendrecv(sendbuf, dest = dR, recvbuf = recvbuf, source = sR)
-    # check if valid input received is expected
+    # check if received input is expected/valid (only if not full domain boundary)
     if boundary_conditions["left"] == None:
         # decompose recvbuf into channels and put them into f_iyx
         f_iyx[1, :, 0] = recvbuf[:subgrid_size_y_with_b].copy()
@@ -57,9 +57,11 @@ def communicate(lbm : LBM, cartcomm, sd):
     i7 = f_iyx[7, :, 1].copy()
     sendbuf = np.array([i3, i6, i7]).flatten()
     recvbuf = np.zeros(subgrid_size_y_with_b*3)
+    # send and receive
     cartcomm.Sendrecv(sendbuf, dest = dL, recvbuf = recvbuf, source = sL)
-    # decompose recvbuf into channels and put them into f_iyx
+    # check if received input is expected/valid (only if not full domain boundary)
     if boundary_conditions["right"] == None:
+        # decompose recvbuf into channels and put them into f_iyx
         f_iyx[3, :, -1] = recvbuf[:subgrid_size_y_with_b].copy()
         f_iyx[6, :, -1] = recvbuf[subgrid_size_y_with_b:2*subgrid_size_y_with_b].copy()
         f_iyx[7, :, -1] = recvbuf[2*subgrid_size_y_with_b:].copy()
@@ -71,9 +73,11 @@ def communicate(lbm : LBM, cartcomm, sd):
     i6 = f_iyx[6, 1, :].copy()
     sendbuf = np.array([i2, i5, i6]).flatten()
     recvbuf = np.zeros(subgrid_size_x_with_b*3)
+    # send and receive
     cartcomm.Sendrecv(sendbuf, dest = dU, recvbuf = recvbuf, source = sU)
-    # decompose recvbuf into channels and put them into f_iyx
+    # check if received input is expected/valid (only if not full domain boundary)
     if boundary_conditions["bottom"] == None:
+        # decompose recvbuf into channels and put them into f_iyx
         f_iyx[2, -1, :] = recvbuf[:subgrid_size_x_with_b]
         f_iyx[5, -1, :] = recvbuf[subgrid_size_x_with_b:2*subgrid_size_x_with_b]
         f_iyx[6, -1, :] = recvbuf[2*subgrid_size_x_with_b:]
@@ -85,9 +89,11 @@ def communicate(lbm : LBM, cartcomm, sd):
     i8 = f_iyx[8, -2, :].copy()
     sendbuf = np.array([i4, i7, i8]).flatten()
     recvbuf = np.zeros(subgrid_size_x_with_b*3)
+    # send and receive
     cartcomm.Sendrecv(sendbuf, dest = dD, recvbuf = recvbuf, source = sD)
-    # decompose recvbuf into channels and put them into f_iyx
+    # check if received input is expected/valid (only if not full domain boundary)
     if boundary_conditions["top"] == None:
+        # decompose recvbuf into channels and put them into f_iyx
         f_iyx[4, 0, :] = recvbuf[:subgrid_size_x_with_b]
         f_iyx[7, 0, :] = recvbuf[subgrid_size_x_with_b:2*subgrid_size_x_with_b]
         f_iyx[8, 0, :] = recvbuf[2*subgrid_size_x_with_b:]
@@ -135,7 +141,8 @@ def domain_decomposition(NX, NY, num_processes):
 
 def run_lbm(cartcomm : MPI.Cartcomm, rank, size, NX, NY, subgrids_number_X, subgrids_number_Y, lbm_parameter, timesteps):
     """
-    Run LBM in parallel
+    Run LBM for each process. This function initializes the LBM for each process and runs it for the given number of timesteps.
+    The last velocity field is gathered and plotted on rank 0.
 
     Parameters
     ----------
@@ -339,7 +346,9 @@ def run_lbm(cartcomm : MPI.Cartcomm, rank, size, NX, NY, subgrids_number_X, subg
 
 def run_lbm_parallel(lbm_parameter, timesteps=100000, number_of_processes_list=None, more_grid_sizes=None):
     """
-    Run LBM in parallel
+    Run LBM in parallel. This function runs the grid decomposition and creates the cartesian communicator.
+    It then runs the lbm in parallel with the given number of processes and grid sizes.
+    MLUPS and time spent are plotted on rank 0.
 
     Parameters
     ----------
@@ -348,9 +357,9 @@ def run_lbm_parallel(lbm_parameter, timesteps=100000, number_of_processes_list=N
     timesteps : int, optional
         Number of timesteps. The default is 100000.
     number_of_processes_list : list, optional
-        List of number of processes. The default is None.
+        List of number of processes. The default is None, then the number of processes is the number of total processes available.
     more_grid_sizes : list, optional
-        List of grid sizes. The default is None.
+        List of grid sizes. The default is None, then only the first grid size, defined in lbm_parameter, is used.
 
     Returns
     -------
@@ -465,7 +474,6 @@ def run_lbm_parallel(lbm_parameter, timesteps=100000, number_of_processes_list=N
                 mlups_ax.grid(True, which="both")
                 mlups_fig.savefig("SlidingLidResults/PARALLEL_Sliding_Lid_MLUPS_T_{}_CPU{}to{}.png".format(timesteps, number_of_processes_list[0], number_of_processes_list[-1]))
 
-
 def print_communication_stats(allrcoords, subgrids_number_X, subgrids_number_Y, size):
     """
     Print communication stats
@@ -541,16 +549,30 @@ def plot_velocity_field(velocity_field_Cyx, plot_name, timesteps, characteristic
     plt.close(fig_velocity_field)
 
 if __name__ == "__main__":
-    # define decomposition parameters
+    # define simulation parameters
+    # number of timesteps
     nt = 100000
+    # grid size in x and y direction
     NX = 300
     NY = 300
+
+    # define decomposition parameters
+    # define number of processes to use by 2^x up to 1024, those are plotted on the MLUPS plot
+    number_of_processes_list = [2**i for i in range(0, 11)]
+    # define different grid sizes to use (after grid size defined by [NX, NY]), those are plotted on the time MLUPS plot
+    # set to None if not needed
+    more_grid_sizes = [[200, 200], [400, 400], [800, 800]]
+    # more_grid_sizes = None
+
+    # define lbm parameters
     reynolds_number = 1000
     characteristic_length = NX if NX > NY else NY
     characteristic_velocity = 0.3
     kinematic_viscosity = characteristic_length * characteristic_velocity / reynolds_number
     omega = 1.0 / (3 * kinematic_viscosity + 0.5)
+    # define the boundary velocity for the full domain
     boundary_velocities_full = {"bottom": 0.0, "top": characteristic_velocity, "left": 0.0, "right": 0.0}
+    # define the boundary conditions for the full domain
     boundary_conditions_full = {
         "bottom" : "bounce_back",
         "top" : "moving_wall",
@@ -558,6 +580,7 @@ if __name__ == "__main__":
         "right" : "bounce_back"
     }
 
+    # define lbm parameter dictionary
     lbm_parameter = {
         "reynolds_number": reynolds_number,
         "width": NX,
@@ -570,9 +593,7 @@ if __name__ == "__main__":
         "boundary_conditions_full": boundary_conditions_full 
     }
 
-    # define number of processes to use by 2^x up to 1024
-    number_of_processes_list = [2**i for i in range(0, 11)]
-    more_grid_sizes = [[200, 200], [400, 400], [800, 800]]
+    # run lbm in parallel
     run_lbm_parallel(lbm_parameter, timesteps=nt, number_of_processes_list=number_of_processes_list, more_grid_sizes=more_grid_sizes)
 
     # mpiexec -n 4 python3 Milestone7_Parallelization.py
