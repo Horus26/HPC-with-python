@@ -122,16 +122,16 @@ def poiseuille_flow(grid_size_x : int, grid_size_y : int, omega : float, timeste
     plt.show()
 
     # calculate area of velocity profile at inlet
-    area = 0
-    for i in range(1, lbm.height-1):
-        area += simulated_velocity_field_tCyx[-1][0][i][1]
-    print("Area of velocity profile at inlet: " + str(area))
+    # area = 0
+    # for i in range(1, lbm.height-1):
+    #     area += simulated_velocity_field_tCyx[-1][0][i][1]
+    # print("Area of velocity profile at inlet: " + str(area))
 
-    # area at middle of pipe
-    area = 0
-    for i in range(1, lbm.height-1):
-        area += simulated_velocity_field_tCyx[-1][0][i][int(lbm.width/2)]
-    print("Area of velocity profile at middle of pipe: " + str(area))
+    # # area at middle of pipe
+    # area = 0
+    # for i in range(1, lbm.height-1):
+    #     area += simulated_velocity_field_tCyx[-1][0][i][int(lbm.width/2)]
+    # print("Area of velocity profile at middle of pipe: " + str(area))
 
 
 def calc_poiseuille_flow_analytical_solution(pipe_height : int, pipe_length : int, inlet_pressure : float, outlet_pressure : float, viscosity : float, density : float):

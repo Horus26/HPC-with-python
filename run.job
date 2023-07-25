@@ -4,8 +4,8 @@
 #SBATCH --time=20:00:00
 #SBATCH -J HPC_WITH_PYTHON
 #SBATCH --mem=6gb
-#SBATCH --output=HPC_OUTPUT_FULL_DECOMP.out
-#SBATCH --error=HPC_ERROR_FULL_DECOMP.err
+#SBATCH --output=HPC_OUTPUT.out
+#SBATCH --error=HPC_ERROR.err
 #SBATCH --export=ALL
 #SBATCH --partition=multiple
 

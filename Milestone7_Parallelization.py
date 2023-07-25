@@ -549,16 +549,28 @@ def plot_velocity_field(velocity_field_Cyx, plot_name, timesteps, characteristic
     plt.close(fig_velocity_field)
 
 if __name__ == "__main__":
+    # -------------------------- Milestone 7 --------------------------
+    # Change here parameters for different simulations
+    # Omega is calculated from the Reynolds number, but every parameter can bet set manually aswell in the lbm_parameter dictionary
+    # Different lattice dimension can be set by changing NX and NY or by adding more grid sizes in more_grid_sizes (also format [NX, NY]])
+    # Different number of processes can be set by changing number_of_processes_list, currently set to 2^x from 1 up to 1024
+    #
+    # Run this code locally in parallel with the following command (specify number of processes with -n):
+    # mpiexec -n 4 python3 Milestone7_Parallelization.py
+    # ------------------------------------------------------------------
+    
     # define simulation parameters
     # number of timesteps
-    nt = 100000
+    nt = 1000
     # grid size in x and y direction
     NX = 300
     NY = 300
 
     # define decomposition parameters
     # define number of processes to use by 2^x up to 1024, those are plotted on the MLUPS plot
+    # set to None to use maximum number of processes available
     number_of_processes_list = [2**i for i in range(0, 11)]
+    # number_of_processes_list = None
     # define different grid sizes to use (after grid size defined by [NX, NY]), those are plotted on the time MLUPS plot
     # set to None if not needed
     more_grid_sizes = [[200, 200], [400, 400], [800, 800]]
@@ -595,5 +607,3 @@ if __name__ == "__main__":
 
     # run lbm in parallel
     run_lbm_parallel(lbm_parameter, timesteps=nt, number_of_processes_list=number_of_processes_list, more_grid_sizes=more_grid_sizes)
-
-    # mpiexec -n 4 python3 Milestone7_Parallelization.py

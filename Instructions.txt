@@ -1,0 +1,14 @@
+Instructions to run the code:
+
+1. Create a python environment (using conda or venv) and activate it
+2. Install the required packages (into an environment) using the command "pip install -r requirements.txt"
+3. Run setup.py to create the necessary folders
+4. Run the selected Milestone file to run the respective simulation
+5. The results are stored in the respective folder denoted with the experiment name of the milestone
+
+When running Milestone7 locally, check out the information on parameter settings at the bottom of the file 
+    for setting the number of processes and defining the grid sizes to use
+To change the grid size or other parameters of an experiment please change the parameters in the respective Milestone file (at the bottom of the file)
+
+Note:
+When running in parallel on the cluster, please create the folder "SlidingLidResults" on the cluster before running the code to store the results

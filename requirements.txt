@@ -53,6 +53,7 @@ notebook==6.5.4
 notebook_shim==0.2.2
 numpy==1.24.2
 packaging==23.1
+pandas==2.0.2
 pandocfilters==1.5.0
 parso==0.8.3
 pexpect==4.8.0
@@ -73,6 +74,7 @@ PyQt6-sip==13.5.0
 pyrsistent==0.19.3
 python-dateutil==2.8.2
 python-json-logger==2.0.7
+pytz==2023.3
 PyYAML==6.0
 pyzmq==25.0.2
 rfc3339-validator==0.1.4
@@ -88,6 +90,7 @@ tinycss2==1.2.1
 tornado==6.2
 tqdm==4.65.0
 traitlets==5.9.0
+tzdata==2023.3
 uri-template==1.2.0
 wcwidth==0.2.6
 webcolors==1.13

@@ -4,7 +4,7 @@ import matplotlib
 from LBM import LBM
 from time import time
 
-def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps : int, lid_velocity : float, save_figures : bool):
+def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps : int, lid_velocity : float, save_figures : bool, show_animation : bool = False):
     """
     Simulate Sliding Lid.
 
@@ -22,6 +22,8 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
         The velocity of the lid.
     save_figures : bool
         Whether to save the figures or not.
+    show_animation : bool, optional
+        Whether to show the animation of the simulated velocity field. The default is False.
 
     Returns
     -------
@@ -93,7 +95,12 @@ def sliding_lid(grid_size_x : int, grid_size_y : int, omega : float, timesteps :
         plt.tight_layout()
         if save_figures:
             plt.savefig("SlidingLidResults/Sliding_Lid_Velocity_Streamplot_T" + str(i) + "_RE" + str(reynolds_number) + ".png")
-        plt.pause(0.1)
+        
+        if show_animation:
+            plt.pause(0.1)
+
+    if not show_animation:
+        plt.close(fig_velocity_animation)
 
     plt.show()
 
@@ -109,7 +116,9 @@ if __name__ == "__main__":
     omega = 1.0 / (3 * kinematic_viscosity + 0.5)
 
     save_figures = True
+    # set to true to see an animation of the velocity field for various timesteps while they are being saved
+    show_animation = False
     print("Kinematic viscosity = " + str(kinematic_viscosity))
     print("omega = " + str(omega))
 
-    sliding_lid(grid_size_x, grid_size_y, omega, timesteps, characteristic_velocity, save_figures)
+    sliding_lid(grid_size_x, grid_size_y, omega, timesteps, characteristic_velocity, save_figures, show_animation)

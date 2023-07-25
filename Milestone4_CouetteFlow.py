@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 from LBM import LBM
 
-def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps : int):
+def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps : int, show_animation : bool = False):
     """
     Simulate Couette flow.
 
@@ -17,6 +17,8 @@ def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps 
         The relaxation parameter.
     timesteps : int
         The number of timesteps to simulate.
+    show_animation : bool, optional
+       Whether to show the animation of the simulated velocity field. The default is False.
 
     Returns
     -------
@@ -93,9 +95,14 @@ def couette_flow(grid_size_x : int, grid_size_y : int, omega : float, timesteps 
         plt.tight_layout()
         if i in safe_timesteps:
             plt.savefig("CouetteFlowResults/CouetteFlow_VelocityField_t{}_y{}_x{}_omega{}.png".format(i, grid_size_y, grid_size_x, omega), bbox_inches='tight')
-        plt.pause(0.001)
+        
+        if show_animation:
+            plt.pause(0.001)
         cbar.remove()
         ax1.clear()
+    
+    if not show_animation:
+        plt.close(fig_velocity_over_time)
         
             
     # plot the velocity profile at L_x / 2 over time
@@ -153,4 +160,7 @@ if __name__ == "__main__":
     grid_size_y = 100
     omega = 1.0
     timesteps = 10000
-    couette_flow(grid_size_x, grid_size_y, omega, timesteps)
+
+    # set to true to see an animation of the velocity field for various timesteps while they are being saved
+    show_animation = False
+    couette_flow(grid_size_x, grid_size_y, omega, timesteps, show_animation)
